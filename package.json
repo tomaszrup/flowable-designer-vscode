@@ -1,7 +1,7 @@
 {
-  "name": "flowable-designer-vscode",
+  "name": "bpmn-designer-vscode",
   "publisher": "TomaszRup",
-  "displayName": "Flowable Designer VS Code",
+  "displayName": "BPMN Designer ported from Flowable Eclipse Designer",
   "description": "VS Code BPMN editor compatible with legacy Eclipse Flowable Designer files",
   "version": "0.0.1",
   "license": "MIT",
