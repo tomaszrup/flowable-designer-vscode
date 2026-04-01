@@ -1,14 +1,13 @@
 import Modeler from 'bpmn-js/lib/Modeler';
+import minimapModule from 'diagram-js-minimap';
 import {
 	cloneFlowableState,
 	createEmptyFlowableState,
 	type FlowableAttributeKey,
-	type FlowableDataObject,
 	type FlowableDocumentState,
 	type FlowableElementState,
 	type FlowableEventListener,
 	type FlowableEventListenerImplType,
-	type FlowableExceptionMap,
 	type FlowableFieldExtension,
 	type FlowableFormProperty,
 	type FlowableIOParameter,
@@ -21,25 +20,47 @@ import {
 	type TimerDefinitionType,
 } from '../flowable/types';
 import type { HostToWebviewMessage, WebviewToHostMessage } from '../shared/messages';
+import { validateId, validateRequired, validateRetryCycle, validateTimerValue } from './validators';
+import {
+	type BpmnElement,
+	getBusinessObject,
+	getElementId,
+	getElementType,
+	getEventDefinitionType,
+	isActivity,
+	isBoundaryEvent,
+	isBusinessRuleTask,
+	isCallActivity,
+	isEndEvent,
+	isEventElement,
+	isEventSubProcess,
+	isExternalWorkerTask,
+	isFlowNode,
+	isGateway,
+	isGenericServiceTask,
+	isHttpTask,
+	isLane,
+	isMailTask,
+	isManualTask,
+	isParticipant,
+	isProcess,
+	isReceiveTask,
+	isScriptTask,
+	isSendTask,
+	isSequenceFlow,
+	isServiceTask,
+	isShellTask,
+	isStartEvent,
+	isSubProcessType,
+	isTextAnnotation,
+	isUserTask,
+} from './bpmnTypeGuards';
 
 declare function acquireVsCodeApi(): {
 	postMessage(message: WebviewToHostMessage): void;
 	setState(state: unknown): void;
 	getState(): unknown;
 };
-
-interface BpmnBusinessObject {
-	id: string;
-	$type: string;
-	name?: string;
-	[key: string]: unknown;
-}
-
-interface BpmnElement {
-	id: string;
-	type: string;
-	businessObject: BpmnBusinessObject;
-}
 
 interface ModelingService {
 	updateProperties(element: BpmnElement, properties: Record<string, unknown>): void;
@@ -51,10 +72,26 @@ interface EventBusService {
 
 interface CanvasService {
 	zoom(level: 'fit-viewport'): void;
+	viewbox(): { x: number; y: number; width: number; height: number };
+	viewbox(box: { x: number; y: number; width: number; height: number }): void;
 }
 
 interface ElementRegistryService {
 	get(id: string): BpmnElement | undefined;
+}
+
+interface CommandStackService {
+	undo(): void;
+	redo(): void;
+	canUndo(): boolean;
+	canRedo(): boolean;
+}
+
+interface MinimapService {
+	open(): void;
+	close(): void;
+	toggle(): void;
+	isOpen(): boolean;
 }
 
 const editableLabels: Partial<Record<FlowableAttributeKey, string>> = {
@@ -132,6 +169,24 @@ const manualTaskAttributes: FlowableAttributeKey[] = [
 	'exclusive',
 ];
 
+const attributePlaceholders: Partial<Record<FlowableAttributeKey, string>> = {
+	assignee: 'e.g. ${initiator}',
+	candidateUsers: 'e.g. user1, user2',
+	candidateGroups: 'e.g. managers, hr',
+	candidateStarterUsers: 'e.g. admin, user1',
+	candidateStarterGroups: 'e.g. managers',
+	formKey: 'e.g. myForm',
+	initiator: 'e.g. initiator',
+	dueDate: 'e.g. 2026-12-31 or ${dueDate}',
+	priority: 'e.g. 50 or ${priority}',
+	category: 'e.g. approval',
+	skipExpression: 'e.g. ${skip}',
+	class: 'e.g. com.example.MyDelegate',
+	expression: 'e.g. ${myBean.execute()}',
+	delegateExpression: 'e.g. ${myDelegate}',
+	resultVariableName: 'e.g. result',
+};
+
 const vscode = acquireVsCodeApi();
 
 function requireElement(id: string): HTMLElement {
@@ -206,176 +261,34 @@ function createFormProperty(): FlowableFormProperty {
 	};
 }
 
-function getBusinessObject(element: BpmnElement): BpmnBusinessObject {
-	return element.businessObject || (element as unknown as BpmnBusinessObject);
-}
-
-function getElementId(element: BpmnElement): string {
-	return getBusinessObject(element).id || element.id;
-}
-
-function getElementType(element: BpmnElement): string {
-	return getBusinessObject(element).$type || element.type;
-}
-
-function isUserTask(element: BpmnElement): boolean {
-	return getElementType(element) === 'bpmn:UserTask';
-}
-
-function isServiceTask(element: BpmnElement): boolean {
-	return getElementType(element) === 'bpmn:ServiceTask';
-}
-
-function isStartEvent(element: BpmnElement): boolean {
-	return getElementType(element) === 'bpmn:StartEvent';
-}
-
-function isProcess(element: BpmnElement): boolean {
-	return getElementType(element) === 'bpmn:Process';
-}
-
-function isSequenceFlow(element: BpmnElement): boolean {
-	return getElementType(element) === 'bpmn:SequenceFlow';
-}
-
-function isScriptTask(element: BpmnElement): boolean {
-	return getElementType(element) === 'bpmn:ScriptTask';
-}
-
-function isBusinessRuleTask(element: BpmnElement): boolean {
-	return getElementType(element) === 'bpmn:BusinessRuleTask';
-}
-
-function isCallActivity(element: BpmnElement): boolean {
-	return getElementType(element) === 'bpmn:CallActivity';
-}
-
-function isMailTask(element: BpmnElement): boolean {
-	if (!isServiceTask(element)) { return false; }
-	const bo = getBusinessObject(element);
-	return bo.$type === 'bpmn:ServiceTask' && (bo as Record<string, unknown>)['activiti:type'] === 'mail';
-}
-
-function isHttpTask(element: BpmnElement): boolean {
-	if (!isServiceTask(element)) { return false; }
-	const bo = getBusinessObject(element);
-	return bo.$type === 'bpmn:ServiceTask' && (bo as Record<string, unknown>)['activiti:type'] === 'http';
-}
-
-function isShellTask(element: BpmnElement): boolean {
-	if (!isServiceTask(element)) { return false; }
-	const bo = getBusinessObject(element);
-	return bo.$type === 'bpmn:ServiceTask' && (bo as Record<string, unknown>)['activiti:type'] === 'shell';
-}
-
-function isExternalWorkerTask(element: BpmnElement): boolean {
-	if (!isServiceTask(element)) { return false; }
-	const bo = getBusinessObject(element);
-	return bo.$type === 'bpmn:ServiceTask' && (bo as Record<string, unknown>)['activiti:type'] === 'external-worker';
-}
-
-function isGenericServiceTask(element: BpmnElement): boolean {
-	return isServiceTask(element) && !isMailTask(element) && !isHttpTask(element) && !isShellTask(element) && !isExternalWorkerTask(element);
-}
-
-function isSendTask(element: BpmnElement): boolean {
-	return getElementType(element) === 'bpmn:SendTask';
-}
-
-function isReceiveTask(element: BpmnElement): boolean {
-	return getElementType(element) === 'bpmn:ReceiveTask';
-}
-
-function isManualTask(element: BpmnElement): boolean {
-	return getElementType(element) === 'bpmn:ManualTask';
-}
-
-function isActivity(element: BpmnElement): boolean {
-	const type = getElementType(element);
-	return type === 'bpmn:UserTask' || type === 'bpmn:ServiceTask' || type === 'bpmn:ScriptTask'
-		|| type === 'bpmn:BusinessRuleTask' || type === 'bpmn:CallActivity'
-		|| type === 'bpmn:SendTask' || type === 'bpmn:ReceiveTask' || type === 'bpmn:ManualTask'
-		|| type === 'bpmn:SubProcess' || type === 'bpmn:Transaction';
-}
-
-function isGateway(element: BpmnElement): boolean {
-	const type = getElementType(element);
-	return type === 'bpmn:ExclusiveGateway' || type === 'bpmn:InclusiveGateway'
-		|| type === 'bpmn:ParallelGateway' || type === 'bpmn:EventBasedGateway'
-		|| type === 'bpmn:ComplexGateway';
-}
-
-function isTextAnnotation(element: BpmnElement): boolean {
-	return getElementType(element) === 'bpmn:TextAnnotation';
-}
-
-function isParticipant(element: BpmnElement): boolean {
-	return getElementType(element) === 'bpmn:Participant';
-}
-
-function isLane(element: BpmnElement): boolean {
-	return getElementType(element) === 'bpmn:Lane';
-}
-
-function isSubProcess(element: BpmnElement): boolean {
-	return getElementType(element) === 'bpmn:SubProcess';
-}
-
-function isTransaction(element: BpmnElement): boolean {
-	return getElementType(element) === 'bpmn:Transaction';
-}
-
-function isEventSubProcess(element: BpmnElement): boolean {
-	if (!isSubProcess(element)) { return false; }
-	const bo = getBusinessObject(element);
-	return bo.triggeredByEvent === true;
-}
-
-function isSubProcessType(element: BpmnElement): boolean {
-	return isSubProcess(element) || isTransaction(element);
-}
-
-function isFlowNode(element: BpmnElement): boolean {
-	return isActivity(element) || isGateway(element) || isStartEvent(element)
-		|| isEndEvent(element) || isBoundaryEvent(element)
-		|| isIntermediateCatchEvent(element) || isIntermediateThrowEvent(element);
-}
-
-function isBoundaryEvent(element: BpmnElement): boolean {
-	return getElementType(element) === 'bpmn:BoundaryEvent';
-}
-
-function isEndEvent(element: BpmnElement): boolean {
-	return getElementType(element) === 'bpmn:EndEvent';
-}
-
-function isIntermediateCatchEvent(element: BpmnElement): boolean {
-	return getElementType(element) === 'bpmn:IntermediateCatchEvent';
-}
-
-function isIntermediateThrowEvent(element: BpmnElement): boolean {
-	return getElementType(element) === 'bpmn:IntermediateThrowEvent';
-}
-
-function isEventElement(element: BpmnElement): boolean {
-	return isStartEvent(element) || isEndEvent(element) || isBoundaryEvent(element)
-		|| isIntermediateCatchEvent(element) || isIntermediateThrowEvent(element);
-}
-
-function getEventDefinitionType(element: BpmnElement): string | null {
-	const bo = getBusinessObject(element);
-	const eventDefs = bo.eventDefinitions as Array<{ $type: string }> | undefined;
-	if (!eventDefs || eventDefs.length === 0) { return null; }
-	return eventDefs[0].$type || null;
-}
-
 function setStatus(message: string, state: 'idle' | 'error' = 'idle'): void {
 	status.textContent = message;
 	status.setAttribute('data-state', state);
 }
 
+function showToast(message: string, level: 'info' | 'success' | 'error' = 'info', duration = 3500): void {
+	const toast = document.createElement('div');
+	toast.className = `toast toast-${level}`;
+	toast.textContent = message;
+	toast.setAttribute('role', 'alert');
+	toastContainer.appendChild(toast);
+
+	window.setTimeout(() => {
+		toast.classList.add('toast-out');
+		toast.addEventListener('animationend', () => toast.remove());
+		// Fallback removal if animationend never fires
+		window.setTimeout(() => toast.remove(), 500);
+	}, duration);
+}
+
 function renderIssues(lines: string[]): void {
-	issues.textContent = lines.length > 0 ? lines.join(' ') : 'No compatibility warnings from the visual editor.';
+	if (lines.length > 0) {
+		issues.textContent = lines.join(' ');
+		issues.style.display = '';
+	} else {
+		issues.textContent = '';
+		issues.style.display = 'none';
+	}
 }
 
 function toIssueMessage(warning: unknown): string {
@@ -389,9 +302,34 @@ function toIssueMessage(warning: unknown): string {
 function createGroup(title: string): HTMLDivElement {
 	const group = document.createElement('div');
 	group.className = 'property-group';
+	group.setAttribute('role', 'region');
+	group.setAttribute('aria-label', title);
+	if (collapsedGroups.has(title)) {
+		group.classList.add('collapsed');
+	}
 
 	const heading = document.createElement('h3');
 	heading.textContent = title;
+	heading.setAttribute('role', 'button');
+	heading.setAttribute('tabindex', '0');
+	heading.setAttribute('aria-expanded', collapsedGroups.has(title) ? 'false' : 'true');
+	const toggleCollapse = (): void => {
+		const isCollapsed = group.classList.toggle('collapsed');
+		heading.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+		if (isCollapsed) {
+			collapsedGroups.add(title);
+		} else {
+			collapsedGroups.delete(title);
+		}
+		persistUiState();
+	};
+	heading.addEventListener('click', toggleCollapse);
+	heading.addEventListener('keydown', (e: KeyboardEvent) => {
+		if (e.key === 'Enter' || e.key === ' ') {
+			e.preventDefault();
+			toggleCollapse();
+		}
+	});
 	group.appendChild(heading);
 
 	return group;
@@ -401,20 +339,51 @@ function createField(labelText: string, control: HTMLElement, inline = false): H
 	const field = document.createElement('div');
 	field.className = inline ? 'field inline' : 'field';
 
+	const id = nextFieldId(labelText.toLowerCase().replace(/[^a-z0-9]/g, '-'));
 	const label = document.createElement('label');
 	label.textContent = labelText;
+	label.setAttribute('for', id);
+	control.id = id;
+
 	field.append(label, control);
 
 	return field;
 }
 
-function createTextInput(value: string, onCommit: (nextValue: string) => void): HTMLInputElement {
+function createTextInput(value: string, onCommit: (nextValue: string) => void, placeholder?: string, validate?: (v: string) => string | null): HTMLInputElement {
 	const input = document.createElement('input');
 	input.type = 'text';
 	input.value = value;
+	if (placeholder) {
+		input.placeholder = placeholder;
+	}
+
+	let errorEl: HTMLSpanElement | null = null;
+	const runValidation = (): void => {
+		if (!validate) { return; }
+		const msg = validate(input.value);
+		if (msg) {
+			input.classList.add('invalid');
+			if (!errorEl) {
+				errorEl = document.createElement('span');
+				errorEl.className = 'field-error';
+				input.parentElement?.appendChild(errorEl);
+			}
+			errorEl.textContent = msg;
+		} else {
+			input.classList.remove('invalid');
+			if (errorEl) { errorEl.remove(); errorEl = null; }
+		}
+	};
+
+	input.addEventListener('input', runValidation);
 	input.addEventListener('change', () => {
 		onCommit(input.value);
 	});
+	// Run initial validation on next frame
+	if (validate) {
+		requestAnimationFrame(runValidation);
+	}
 	return input;
 }
 
@@ -422,19 +391,32 @@ function createCheckbox(value: boolean, onCommit: (nextValue: boolean) => void):
 	const input = document.createElement('input');
 	input.type = 'checkbox';
 	input.checked = value;
+	input.setAttribute('role', 'switch');
+	input.setAttribute('aria-checked', String(value));
 	input.addEventListener('change', () => {
+		input.setAttribute('aria-checked', String(input.checked));
 		onCommit(input.checked);
 	});
 	return input;
 }
 
-function createTextArea(value: string, onCommit: (nextValue: string) => void): HTMLTextAreaElement {
+function createTextArea(value: string, onCommit: (nextValue: string) => void, placeholder?: string): HTMLTextAreaElement {
 	const textarea = document.createElement('textarea');
-	textarea.rows = 4;
+	textarea.rows = 2;
 	textarea.value = value;
+	if (placeholder) {
+		textarea.placeholder = placeholder;
+	}
+	const autoResize = (): void => {
+		textarea.style.height = 'auto';
+		textarea.style.height = `${textarea.scrollHeight}px`;
+	};
+	textarea.addEventListener('input', autoResize);
 	textarea.addEventListener('change', () => {
 		onCommit(textarea.value);
 	});
+	// Initial size on next frame when element is attached
+	requestAnimationFrame(autoResize);
 	return textarea;
 }
 
@@ -453,11 +435,97 @@ function createSelect(options: string[], selected: string, onCommit: (nextValue:
 	return select;
 }
 
+// Drag-to-reorder for collection items
+function makeDraggableItem<T>(item: HTMLDivElement, index: number, array: T[], collectionId: string, onReorder: () => void): void {
+	const handle = document.createElement('span');
+	handle.className = 'drag-handle';
+	handle.textContent = '\u2630';
+	handle.title = 'Drag to reorder';
+	handle.setAttribute('aria-label', 'Drag to reorder');
+	item.draggable = true;
+	item.insertBefore(handle, item.firstChild);
+
+	const mimeType = `application/x-collection-${collectionId}`;
+
+	item.addEventListener('dragstart', (e: DragEvent) => {
+		if (e.dataTransfer) {
+			e.dataTransfer.effectAllowed = 'move';
+			e.dataTransfer.setData(mimeType, String(index));
+		}
+		item.classList.add('dragging');
+	});
+
+	item.addEventListener('dragend', () => {
+		item.classList.remove('dragging');
+	});
+
+	item.addEventListener('dragover', (e: DragEvent) => {
+		if (!e.dataTransfer?.types.includes(mimeType)) { return; }
+		e.preventDefault();
+		if (e.dataTransfer) {
+			e.dataTransfer.dropEffect = 'move';
+		}
+		item.classList.add('drag-over');
+	});
+
+	item.addEventListener('dragleave', () => {
+		item.classList.remove('drag-over');
+	});
+
+	item.addEventListener('drop', (e: DragEvent) => {
+		if (!e.dataTransfer?.types.includes(mimeType)) { return; }
+		e.preventDefault();
+		item.classList.remove('drag-over');
+		const fromIndex = Number(e.dataTransfer?.getData(mimeType));
+		const toIndex = index;
+		if (isNaN(fromIndex) || fromIndex === toIndex || fromIndex < 0 || fromIndex >= array.length) { return; }
+		const [moved] = array.splice(fromIndex, 1);
+		array.splice(fromIndex < toIndex ? toIndex - 1 : toIndex, 0, moved);
+		onReorder();
+	});
+}
+
+// Reference picker: select with option to type custom value
+function createReferenceSelect(options: Array<{ value: string; label: string }>, selected: string, onCommit: (nextValue: string) => void, placeholder?: string): HTMLSelectElement {
+	const select = document.createElement('select');
+	const emptyOpt = document.createElement('option');
+	emptyOpt.value = '';
+	emptyOpt.textContent = placeholder || '(none)';
+	emptyOpt.selected = !selected;
+	select.appendChild(emptyOpt);
+	for (const opt of options) {
+		const option = document.createElement('option');
+		option.value = opt.value;
+		option.textContent = opt.label;
+		option.selected = opt.value === selected;
+		select.appendChild(option);
+	}
+	// Add current value if not in options
+	if (selected && !options.some((o) => o.value === selected)) {
+		const customOpt = document.createElement('option');
+		customOpt.value = selected;
+		customOpt.textContent = `${selected} (custom)`;
+		customOpt.selected = true;
+		select.appendChild(customOpt);
+	}
+	select.addEventListener('change', () => {
+		onCommit(select.value);
+	});
+	return select;
+}
+
 const canvas = requireElement('canvas');
 const status = requireElement('status');
 const issues = requireElement('issues');
 const properties = requireElement('properties');
 const btnViewSource = requireElement('btn-view-source');
+const btnUndo = requireElement('btn-undo') as HTMLButtonElement;
+const btnRedo = requireElement('btn-redo') as HTMLButtonElement;
+const unsavedDot = requireElement('unsaved-dot');
+const resizeHandle = requireElement('resize-handle');
+const toastContainer = requireElement('toast-container');
+const propertySearch = requireElement('property-search') as HTMLInputElement;
+const layoutEl = document.querySelector('.layout') as HTMLElement;
 
 const style = getComputedStyle(document.documentElement);
 const vscodeText = style.getPropertyValue('--vscode-editor-foreground').trim() || '#cccccc';
@@ -465,6 +533,7 @@ const vscodeBackground = style.getPropertyValue('--vscode-editor-background').tr
 
 const modeler = new Modeler({
 	container: canvas,
+	additionalModules: [minimapModule],
 	bpmnRenderer: {
 		defaultFillColor: vscodeBackground,
 		defaultStrokeColor: vscodeText,
@@ -476,15 +545,46 @@ const eventBus = modeler.get('eventBus') as EventBusService;
 const modeling = modeler.get('modeling') as ModelingService;
 const canvasService = modeler.get('canvas') as CanvasService;
 const elementRegistry = modeler.get('elementRegistry') as ElementRegistryService;
+const commandStack = modeler.get('commandStack') as CommandStackService;
+const minimap = modeler.get('minimap') as MinimapService;
+
+// Close minimap by default (controlled by extension config)
+minimap.close();
 
 let currentXml = '';
 let applyingRemoteUpdate = false;
+let initialLoadDone = false;
 let fieldCounter = 0;
 let listenerCounter = 0;
 let formPropertyCounter = 0;
 let selectedElement: BpmnElement | null = null;
 let flowableState: FlowableDocumentState = createEmptyFlowableState();
 let metadataSaveTimer: number | undefined;
+let fieldIdCounter = 0;
+
+function nextFieldId(prefix: string): string {
+	fieldIdCounter += 1;
+	return `fld-${prefix}-${fieldIdCounter}`;
+}
+
+// UI state (persisted across reloads)
+const savedUiState = (vscode.getState() || {}) as { collapsedGroups?: string[]; sidebarWidth?: number };
+const collapsedGroups = new Set<string>(savedUiState.collapsedGroups || []);
+let sidebarWidth = savedUiState.sidebarWidth ?? 320;
+
+function persistUiState(): void {
+	const current = (vscode.getState() || {}) as Record<string, unknown>;
+	vscode.setState({ ...current, collapsedGroups: Array.from(collapsedGroups), sidebarWidth });
+}
+
+function updateDirtyIndicator(dirty: boolean): void {
+	unsavedDot.classList.toggle('visible', dirty);
+}
+
+function updateUndoRedoState(): void {
+	btnUndo.disabled = !commandStack.canUndo();
+	btnRedo.disabled = !commandStack.canRedo();
+}
 
 function postMessage(message: WebviewToHostMessage): void {
 	vscode.postMessage(message);
@@ -526,6 +626,7 @@ function queueMetadataSave(): void {
 		window.clearTimeout(metadataSaveTimer);
 	}
 
+	updateDirtyIndicator(true);
 	metadataSaveTimer = window.setTimeout(() => {
 		void saveXml();
 	}, 120);
@@ -968,6 +1069,7 @@ function renderIOParameters(group: HTMLDivElement, params: FlowableIOParameter[]
 	params.forEach((param, index) => {
 		const item = document.createElement('div');
 		item.className = 'field-array-item';
+		makeDraggableItem(item, index, params, `io-${kind}`, () => { queueMetadataSave(); renderProperties(); });
 		item.appendChild(createField('Source', createTextInput(param.source, (v) => updateIOParameter(kind, index, { source: v }))));
 		item.appendChild(createField('Source Expression', createTextInput(param.sourceExpression, (v) => updateIOParameter(kind, index, { sourceExpression: v }))));
 		item.appendChild(createField('Target', createTextInput(param.target, (v) => updateIOParameter(kind, index, { target: v }))));
@@ -1008,6 +1110,7 @@ function renderFieldExtensions(group: HTMLDivElement, elementState: FlowableElem
 	elementState.fieldExtensions.forEach((fieldExtension, index) => {
 		const item = document.createElement('div');
 		item.className = 'field-array-item';
+		makeDraggableItem(item, index, elementState.fieldExtensions, 'field-extensions', () => { queueMetadataSave(); renderProperties(); });
 
 		item.appendChild(
 			createField('Name', createTextInput(fieldExtension.name, (nextValue) => {
@@ -1064,6 +1167,7 @@ function renderListeners(group: HTMLDivElement, listeners: FlowableListener[], k
 	listeners.forEach((listener, index) => {
 		const item = document.createElement('div');
 		item.className = 'field-array-item';
+		makeDraggableItem(item, index, listeners, `listeners-${kind}`, () => { queueMetadataSave(); renderProperties(); });
 
 		const eventSelect = document.createElement('select');
 		for (const eventName of eventOptions) {
@@ -1123,6 +1227,7 @@ function renderFormProperties(group: HTMLDivElement, formProperties: FlowableFor
 	formProperties.forEach((formProperty, index) => {
 		const item = document.createElement('div');
 		item.className = 'field-array-item';
+		makeDraggableItem(item, index, formProperties, 'form-properties', () => { queueMetadataSave(); renderProperties(); });
 
 		item.appendChild(createField('ID', createTextInput(formProperty.id, (nextValue) => {
 			updateFormProperty(index, { id: nextValue });
@@ -1202,7 +1307,7 @@ function renderAttributeGroup(groupTitle: string, attributes: FlowableAttributeK
 				label,
 				createTextInput(elementState.activitiAttributes[attribute] || '', (nextValue) => {
 					updateFlowableAttribute(attribute, nextValue);
-				}),
+				}, attributePlaceholders[attribute]),
 			),
 		);
 	}
@@ -1214,6 +1319,7 @@ function renderProperties(): void {
 	const scrollContainer = properties.closest('.sidebar');
 	const scrollTop = scrollContainer?.scrollTop ?? 0;
 
+	fieldIdCounter = 0;
 	properties.replaceChildren();
 
 	if (!selectedElement) {
@@ -1231,7 +1337,7 @@ function renderProperties(): void {
 	generalGroup.appendChild(
 		createField('ID', createTextInput(getElementId(selectedElement), (nextValue) => {
 			updateGeneralProperty('id', nextValue);
-		})),
+		}, undefined, validateId)),
 	);
 	generalGroup.appendChild(
 		createField('Name', createTextInput(typeof businessObject.name === 'string' ? businessObject.name : '', (nextValue) => {
@@ -1246,7 +1352,7 @@ function renderProperties(): void {
 	const docGroup = createGroup('Documentation');
 	docGroup.appendChild(createField('Documentation', createTextArea(elementState.documentation, (nextValue) => {
 		updateDocumentation(nextValue);
-	})));
+	}, 'Enter element documentation...')));
 	properties.appendChild(docGroup);
 
 	if (isProcess(selectedElement)) {
@@ -1254,7 +1360,7 @@ function renderProperties(): void {
 		const nsGroup = createGroup('Process Namespace');
 		nsGroup.appendChild(createField('Target Namespace', createTextInput(flowableState.targetNamespace, (nextValue) => {
 			updateTargetNamespace(nextValue);
-		})));
+		}, 'e.g. http://www.flowable.org/processdef')));
 		properties.appendChild(nsGroup);
 
 		properties.appendChild(renderAttributeGroup('Process', processAttributes, elementState));
@@ -1264,6 +1370,7 @@ function renderProperties(): void {
 		flowableState.signalDefinitions.forEach((signalDef, index) => {
 			const item = document.createElement('div');
 			item.className = 'field-array-item';
+			makeDraggableItem(item, index, flowableState.signalDefinitions, 'signal-defs', () => { queueMetadataSave(); renderProperties(); });
 			item.appendChild(createField('ID', createTextInput(signalDef.id, (v) => updateSignalDefinition(index, { id: v }))));
 			item.appendChild(createField('Name', createTextInput(signalDef.name, (v) => updateSignalDefinition(index, { name: v }))));
 			item.appendChild(createField('Scope', createSelect(
@@ -1294,6 +1401,7 @@ function renderProperties(): void {
 		flowableState.messageDefinitions.forEach((messageDef, index) => {
 			const item = document.createElement('div');
 			item.className = 'field-array-item';
+			makeDraggableItem(item, index, flowableState.messageDefinitions, 'message-defs', () => { queueMetadataSave(); renderProperties(); });
 			item.appendChild(createField('ID', createTextInput(messageDef.id, (v) => updateMessageDefinition(index, { id: v }))));
 			item.appendChild(createField('Name', createTextInput(messageDef.name, (v) => updateMessageDefinition(index, { name: v }))));
 			const removeBtn = document.createElement('button');
@@ -1320,6 +1428,7 @@ function renderProperties(): void {
 		flowableState.eventListeners.forEach((listener, index) => {
 			const item = document.createElement('div');
 			item.className = 'field-array-item';
+			makeDraggableItem(item, index, flowableState.eventListeners, 'event-listeners', () => { queueMetadataSave(); renderProperties(); });
 			item.appendChild(createField('Events', createTextInput(listener.events, (v) => updateEventListener(index, { events: v }))));
 			item.appendChild(createField('Implementation Type', createSelect(
 				implTypes,
@@ -1351,6 +1460,7 @@ function renderProperties(): void {
 		flowableState.localizations.forEach((loc, index) => {
 			const item = document.createElement('div');
 			item.className = 'field-array-item';
+			makeDraggableItem(item, index, flowableState.localizations, 'localizations', () => { queueMetadataSave(); renderProperties(); });
 			item.appendChild(createField('Locale', createTextInput(loc.locale, (v) => updateLocalization(index, { locale: v }))));
 			item.appendChild(createField('Name', createTextInput(loc.name, (v) => updateLocalization(index, { name: v }))));
 			item.appendChild(createField('Description', createTextArea(loc.description, (v) => updateLocalization(index, { description: v }))));
@@ -1378,6 +1488,7 @@ function renderProperties(): void {
 			flowableState.dataObjects.forEach((dataObj, index) => {
 				const item = document.createElement('div');
 				item.className = 'field-array-item';
+				makeDraggableItem(item, index, flowableState.dataObjects, 'data-objects', () => { queueMetadataSave(); renderProperties(); });
 				item.appendChild(createField('ID', createTextInput(dataObj.id, (v) => {
 					flowableState.dataObjects[index].id = v;
 					queueMetadataSave();
@@ -1447,6 +1558,7 @@ function renderProperties(): void {
 		elementState.exceptionMaps.forEach((em, idx) => {
 			const item = document.createElement('div');
 			item.className = 'field-array-item';
+			makeDraggableItem(item, idx, elementState.exceptionMaps, 'exception-maps', () => { queueMetadataSave(); renderProperties(); });
 			item.appendChild(createField('Error Code', createTextInput(em.errorCode, (v) => {
 				elementState.exceptionMaps[idx].errorCode = v;
 				queueMetadataSave();
@@ -1474,6 +1586,8 @@ function renderProperties(): void {
 			item.appendChild(removeBtn);
 			exceptionGroup.appendChild(item);
 		});
+		const exActions = document.createElement('div');
+		exActions.className = 'properties-actions';
 		const addExBtn = document.createElement('button');
 		addExBtn.type = 'button';
 		addExBtn.textContent = 'Add Exception Mapping';
@@ -1487,7 +1601,8 @@ function renderProperties(): void {
 			queueMetadataSave();
 			renderProperties();
 		});
-		exceptionGroup.appendChild(addExBtn);
+		exActions.appendChild(addExBtn);
+		exceptionGroup.appendChild(exActions);
 		properties.appendChild(exceptionGroup);
 	}
 
@@ -1755,7 +1870,7 @@ function renderProperties(): void {
 			)));
 			timerGroup.appendChild(createField('Value', createTextInput(timerDef.value, (nextValue) => {
 				updateTimerDefinition({ value: nextValue });
-			})));
+			}, 'e.g. PT5M, 2026-12-31T23:59, R3/PT10M', validateTimerValue)));
 			properties.appendChild(timerGroup);
 		}
 
@@ -1769,17 +1884,19 @@ function renderProperties(): void {
 
 		if (eventDefType === 'bpmn:SignalEventDefinition') {
 			const signalGroup = createGroup('Signal Definition');
-			signalGroup.appendChild(createField('Signal Reference', createTextInput(elementState.signalRef, (nextValue) => {
+			const signalOptions = flowableState.signalDefinitions.map((s) => ({ value: s.name || s.id, label: s.name || s.id }));
+			signalGroup.appendChild(createField('Signal Reference', createReferenceSelect(signalOptions, elementState.signalRef, (nextValue) => {
 				updateSignalRef(nextValue);
-			})));
+			}, 'Select a signal...')));
 			properties.appendChild(signalGroup);
 		}
 
 		if (eventDefType === 'bpmn:MessageEventDefinition') {
 			const messageGroup = createGroup('Message Definition');
-			messageGroup.appendChild(createField('Message Reference', createTextInput(elementState.messageRef, (nextValue) => {
+			const messageOptions = flowableState.messageDefinitions.map((m) => ({ value: m.name || m.id, label: m.name || m.id }));
+			messageGroup.appendChild(createField('Message Reference', createReferenceSelect(messageOptions, elementState.messageRef, (nextValue) => {
 				updateMessageRef(nextValue);
-			})));
+			}, 'Select a message...')));
 			properties.appendChild(messageGroup);
 		}
 
@@ -1824,10 +1941,11 @@ function renderProperties(): void {
 		const flowGroup = createGroup('Sequence Flow');
 		flowGroup.appendChild(createField('Condition Expression', createTextArea(elementState.conditionExpression, (nextValue) => {
 			updateConditionExpression(nextValue);
-		})));
+		}, 'e.g. ${approved == true}')));
 		flowGroup.appendChild(createField('Skip Expression', createTextInput(
 			elementState.activitiAttributes.skipExpression || '',
 			(nextValue) => updateFlowableAttribute('skipExpression', nextValue),
+			'e.g. ${skip}',
 		)));
 		properties.appendChild(flowGroup);
 	}
@@ -1846,7 +1964,7 @@ function renderProperties(): void {
 		)));
 		scriptGroup.appendChild(createField('Script', createTextArea(elementState.script, (nextValue) => {
 			updateScript(nextValue);
-		})));
+		}, 'Enter script code...')));
 		properties.appendChild(scriptGroup);
 	}
 
@@ -1885,6 +2003,7 @@ function renderProperties(): void {
 				modeling.updateProperties(currentElement, { calledElement: nextValue });
 				queueMetadataSave();
 			},
+			'e.g. mySubProcess',
 		)));
 		properties.appendChild(callGroup);
 
@@ -1903,13 +2022,16 @@ function renderProperties(): void {
 		if (elementState.multiInstance) {
 			renderMultiInstance(miGroup, elementState.multiInstance);
 		} else {
+			const miActions = document.createElement('div');
+			miActions.className = 'properties-actions';
 			const addMiButton = document.createElement('button');
 			addMiButton.type = 'button';
 			addMiButton.textContent = 'Add Multi-Instance';
 			addMiButton.addEventListener('click', () => {
 				updateMultiInstance({});
 			});
-			miGroup.appendChild(addMiButton);
+			miActions.appendChild(addMiButton);
+			miGroup.appendChild(miActions);
 		}
 		properties.appendChild(miGroup);
 
@@ -1928,7 +2050,9 @@ function renderProperties(): void {
 		const currentDefault = typeof businessObject.default === 'object' && businessObject.default !== null
 			? (businessObject.default as { id?: string }).id || ''
 			: (typeof businessObject.default === 'string' ? businessObject.default : '');
-		gatewayGroup.appendChild(createField('Default Flow', createTextInput(currentDefault, (nextValue) => {
+		const outgoingFlows = (businessObject.outgoing as Array<{ id: string; name?: string }> || []);
+		const flowOptions = outgoingFlows.map((f) => ({ value: f.id, label: f.name ? `${f.name} (${f.id})` : f.id }));
+		gatewayGroup.appendChild(createField('Default Flow', createReferenceSelect(flowOptions, currentDefault, (nextValue) => {
 			if (!selectedElement) { return; }
 			const targetFlow = nextValue.trim();
 			if (targetFlow) {
@@ -1940,7 +2064,7 @@ function renderProperties(): void {
 				modeling.updateProperties(selectedElement, { default: undefined });
 			}
 			queueMetadataSave();
-		})));
+		}, 'Select a sequence flow...')));
 		properties.appendChild(gatewayGroup);
 	}
 
@@ -1958,6 +2082,8 @@ function renderProperties(): void {
 		asyncGroup.appendChild(createField('Failed Job Retry', createTextInput(
 			elementState.failedJobRetryTimeCycle,
 			(nextValue) => updateFailedJobRetryTimeCycle(nextValue),
+			'e.g. R3/PT10M',
+			validateRetryCycle,
 		)));
 		properties.appendChild(asyncGroup);
 	}
@@ -1968,6 +2094,8 @@ function renderProperties(): void {
 		retryGroup.appendChild(createField('Retry Time Cycle', createTextInput(
 			elementState.failedJobRetryTimeCycle,
 			(nextValue) => updateFailedJobRetryTimeCycle(nextValue),
+			'e.g. R3/PT10M',
+			validateRetryCycle,
 		)));
 		properties.appendChild(retryGroup);
 	}
@@ -1991,27 +2119,44 @@ function renderProperties(): void {
 	if (scrollContainer) {
 		scrollContainer.scrollTop = scrollTop;
 	}
+
+	// Reapply search filter if active
+	applyPropertyFilter(propertySearch.value);
 }
 
 async function loadXml(xml: string): Promise<void> {
 	applyingRemoteUpdate = true;
 	setStatus('Loading BPMN diagram...');
 
+	// Save viewport before re-import so we can restore it
+	const savedViewbox = initialLoadDone ? canvasService.viewbox() : null;
+
 	try {
 		const previousSelectionId = selectedElement ? getElementId(selectedElement) : undefined;
 		const result = await modeler.importXML(xml);
-		canvasService.zoom('fit-viewport');
+
+		if (savedViewbox) {
+			// Re-sync: restore previous viewport position
+			canvasService.viewbox(savedViewbox);
+		} else {
+			// Initial load: fit entire diagram into view
+			canvasService.zoom('fit-viewport');
+		}
+		initialLoadDone = true;
+
 		currentXml = xml;
 		renderIssues(result.warnings.map(toIssueMessage));
 		setStatus('Diagram synchronized');
-		vscode.setState({ xml, flowableState });
+		vscode.setState({ xml, flowableState, collapsedGroups: Array.from(collapsedGroups), sidebarWidth });
 		selectedElement = previousSelectionId ? elementRegistry.get(previousSelectionId) || null : null;
 		renderProperties();
+		updateUndoRedoState();
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		setStatus('Unable to render BPMN XML', 'error');
 		renderIssues([message]);
 		postMessage({ type: 'show-error', message });
+		showToast('Failed to load diagram', 'error');
 	} finally {
 		applyingRemoteUpdate = false;
 	}
@@ -2030,14 +2175,16 @@ async function saveXml(): Promise<void> {
 
 		currentXml = result.xml;
 		const clonedState = cloneFlowableState(flowableState);
-		vscode.setState({ xml: result.xml, flowableState: clonedState });
+		vscode.setState({ xml: result.xml, flowableState: clonedState, collapsedGroups: Array.from(collapsedGroups), sidebarWidth });
 		postMessage({ type: 'save-document', xml: result.xml, flowableState: clonedState });
 		setStatus('Diagram updated');
+		updateDirtyIndicator(false);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		setStatus('Unable to serialize BPMN XML', 'error');
 		renderIssues([message]);
 		postMessage({ type: 'show-error', message });
+		showToast('Failed to save diagram', 'error');
 	}
 }
 
@@ -2045,9 +2192,11 @@ async function exportSvg(): Promise<void> {
 	try {
 		const result = await (modeler as unknown as { saveSVG(): Promise<{ svg: string }> }).saveSVG();
 		postMessage({ type: 'svg-export', svg: result.svg });
+		showToast('SVG exported successfully', 'success');
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		postMessage({ type: 'show-error', message: `SVG export failed: ${message}` });
+		showToast(`Export failed: ${message}`, 'error');
 	}
 }
 
@@ -2087,14 +2236,23 @@ eventBus.on('copyPaste.pasteElement', (event) => {
 });
 
 modeler.on('commandStack.changed', () => {
+	updateDirtyIndicator(true);
 	void saveXml();
 	renderProperties();
+	updateUndoRedoState();
 });
 
 window.addEventListener('message', (event: MessageEvent<HostToWebviewMessage>) => {
 	switch (event.data.type) {
 		case 'load-document': {
 			flowableState = cloneFlowableState(event.data.flowableState);
+			if (!initialLoadDone) {
+				if (event.data.minimapEnabled) {
+					minimap.open();
+				} else {
+					minimap.close();
+				}
+			}
 			void loadXml(event.data.xml);
 			break;
 		}
@@ -2111,6 +2269,89 @@ window.addEventListener('message', (event: MessageEvent<HostToWebviewMessage>) =
 
 btnViewSource.addEventListener('click', () => {
 	postMessage({ type: 'open-source' });
+});
+
+btnUndo.addEventListener('click', () => commandStack.undo());
+btnRedo.addEventListener('click', () => commandStack.redo());
+
+// Property search/filter
+function applyPropertyFilter(query: string): void {
+	const normalizedQuery = query.toLowerCase().trim();
+	const groups = Array.from(properties.querySelectorAll('.property-group'));
+	for (const group of groups) {
+		if (!normalizedQuery) {
+			group.classList.remove('search-hidden');
+			continue;
+		}
+		const text = group.textContent?.toLowerCase() || '';
+		group.classList.toggle('search-hidden', !text.includes(normalizedQuery));
+	}
+}
+
+propertySearch.addEventListener('input', () => {
+	applyPropertyFilter(propertySearch.value);
+});
+
+// Resize handle
+let isResizing = false;
+
+function stopResizing(): void {
+	if (!isResizing) { return; }
+	isResizing = false;
+	resizeHandle.classList.remove('active');
+	document.body.style.cursor = '';
+	document.body.style.userSelect = '';
+	persistUiState();
+}
+
+resizeHandle.addEventListener('pointerdown', (e: PointerEvent) => {
+	e.preventDefault();
+	isResizing = true;
+	resizeHandle.classList.add('active');
+	resizeHandle.setPointerCapture(e.pointerId);
+	document.body.style.cursor = 'col-resize';
+	document.body.style.userSelect = 'none';
+});
+
+window.addEventListener('pointermove', (e: PointerEvent) => {
+	if (!isResizing) { return; }
+	const layoutRect = layoutEl.getBoundingClientRect();
+	const newWidth = Math.max(200, Math.min(600, layoutRect.right - e.clientX));
+	sidebarWidth = newWidth;
+	layoutEl.style.setProperty('--sidebar-width', `${newWidth}px`);
+});
+
+window.addEventListener('pointerup', stopResizing);
+window.addEventListener('pointercancel', stopResizing);
+
+// Restore persisted sidebar width
+if (sidebarWidth !== 320) {
+	layoutEl.style.setProperty('--sidebar-width', `${sidebarWidth}px`);
+}
+
+// Keyboard: Escape deselects element and returns focus to canvas
+window.addEventListener('keydown', (e: KeyboardEvent) => {
+	if (e.key === 'Escape' && selectedElement) {
+		const selectionService = modeler.get('selection') as { select(elements: BpmnElement[]): void };
+		selectionService.select([]);
+		canvas.focus();
+	}
+});
+
+// Keyboard support for resize handle
+resizeHandle.addEventListener('keydown', (e: KeyboardEvent) => {
+	const step = e.shiftKey ? 50 : 10;
+	if (e.key === 'ArrowLeft') {
+		e.preventDefault();
+		sidebarWidth = Math.min(600, sidebarWidth + step);
+		layoutEl.style.setProperty('--sidebar-width', `${sidebarWidth}px`);
+		persistUiState();
+	} else if (e.key === 'ArrowRight') {
+		e.preventDefault();
+		sidebarWidth = Math.max(200, sidebarWidth - step);
+		layoutEl.style.setProperty('--sidebar-width', `${sidebarWidth}px`);
+		persistUiState();
+	}
 });
 
 postMessage({ type: 'ready' });

@@ -33,6 +33,25 @@
       <bpmndi:BPMNShape bpmnElement="endevent1" id="BPMNShape_endevent1">
         <omgdc:Bounds height="35.0" width="35.0" x="450.0" y="200.0"/>
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="boundarycompensation1" id="BPMNShape_boundarycompensation1">
+        <omgdc:Bounds height="30.0" width="30.0" x="217.0" y="230.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge bpmnElement="flow1" id="BPMNEdge_flow1">
+        <omgdi:waypoint x="125.0" y="217.5"/>
+        <omgdi:waypoint x="180.0" y="217.5"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="flow2" id="BPMNEdge_flow2">
+        <omgdi:waypoint x="285.0" y="217.5"/>
+        <omgdi:waypoint x="350.0" y="217.5"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="flow3" id="BPMNEdge_flow3">
+        <omgdi:waypoint x="385.0" y="217.5"/>
+        <omgdi:waypoint x="450.0" y="217.5"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="assoc1" id="BPMNEdge_assoc1">
+        <omgdi:waypoint x="232.0" y="260.0"/>
+        <omgdi:waypoint x="232.0" y="310.0"/>
+      </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
 </definitions>

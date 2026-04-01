@@ -86,6 +86,30 @@
       <bpmndi:BPMNShape id="BPMNShape_end1" bpmnElement="end1">
         <omgdc:Bounds x="936" y="200" width="36" height="36"></omgdc:Bounds>
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge bpmnElement="flow1" id="BPMNEdge_flow1">
+        <omgdi:waypoint x="136" y="218"/>
+        <omgdi:waypoint x="200" y="218"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="flow2" id="BPMNEdge_flow2">
+        <omgdi:waypoint x="300" y="218"/>
+        <omgdi:waypoint x="350" y="218"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="flow3" id="BPMNEdge_flow3">
+        <omgdi:waypoint x="450" y="218"/>
+        <omgdi:waypoint x="500" y="218"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="flow4" id="BPMNEdge_flow4">
+        <omgdi:waypoint x="600" y="218"/>
+        <omgdi:waypoint x="650" y="218"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="flow5" id="BPMNEdge_flow5">
+        <omgdi:waypoint x="750" y="218"/>
+        <omgdi:waypoint x="800" y="218"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="flow6" id="BPMNEdge_flow6">
+        <omgdi:waypoint x="900" y="218"/>
+        <omgdi:waypoint x="936" y="218"/>
+      </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
 </definitions>

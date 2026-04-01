@@ -3,7 +3,7 @@
   "publisher": "TomaszRup",
   "displayName": "BPMN Designer ported from Flowable Eclipse Designer",
   "description": "VS Code BPMN editor compatible with legacy Eclipse Flowable Designer files",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -150,6 +150,11 @@
           "default": true,
           "description": "Automatically validate BPMN on save and report issues in the Problems panel."
         },
+        "flowableBpmnDesigner.editor.minimap": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show the minimap overlay on the BPMN canvas."
+        },
         "flowableBpmnDesigner.editor.defaultLanguage": {
           "type": "string",
           "default": "en",
@@ -177,7 +182,7 @@
     "test": "vitest run",
     "vscode:prepublish": "npm run package-web",
     "package:vsix": "vsce package",
-    "copy-bpmn-assets": "mkdir -p dist/webview/bpmn-assets/bpmn-font && cp node_modules/bpmn-js/dist/assets/diagram-js.css dist/webview/bpmn-assets/ && cp -r node_modules/bpmn-js/dist/assets/bpmn-font/css dist/webview/bpmn-assets/bpmn-font/ && cp -r node_modules/bpmn-js/dist/assets/bpmn-font/font dist/webview/bpmn-assets/bpmn-font/",
+    "copy-bpmn-assets": "mkdir -p dist/webview/bpmn-assets/bpmn-font && cp node_modules/bpmn-js/dist/assets/diagram-js.css dist/webview/bpmn-assets/ && cp -r node_modules/bpmn-js/dist/assets/bpmn-font/css dist/webview/bpmn-assets/bpmn-font/ && cp -r node_modules/bpmn-js/dist/assets/bpmn-font/font dist/webview/bpmn-assets/bpmn-font/ && cp node_modules/diagram-js-minimap/assets/diagram-js-minimap.css dist/webview/bpmn-assets/",
     "compile-web": "npm run check-types && npm run lint && npm run build:vite:extension && npm run build:vite:webview && npm run copy-bpmn-assets",
     "watch-web": "npm-run-all -p watch-web:*",
     "watch-web:vite:extension": "vite build --watch --config vite.extension.config.ts",
@@ -204,6 +209,7 @@
   },
   "dependencies": {
     "@xmldom/xmldom": "^0.9.9",
-    "bpmn-js": "^18.14.0"
+    "bpmn-js": "^18.14.0",
+    "diagram-js-minimap": "^5.3.0"
   }
 }

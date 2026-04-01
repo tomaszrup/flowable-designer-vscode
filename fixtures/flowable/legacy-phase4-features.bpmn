@@ -56,6 +56,79 @@
       <bpmndi:BPMNShape bpmnElement="endEvent1" id="BPMNShape_endEvent1">
         <omgdc:Bounds height="28.0" width="28.0" x="1000.0" y="164.0"></omgdc:Bounds>
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="subStart1" id="BPMNShape_subStart1">
+        <omgdc:Bounds height="30.0" width="30.0" x="350.0" y="158.0"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="subTask1" id="BPMNShape_subTask1">
+        <omgdc:Bounds height="60.0" width="100.0" x="420.0" y="148.0"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="subEnd1" id="BPMNShape_subEnd1">
+        <omgdc:Bounds height="30.0" width="30.0" x="560.0" y="158.0"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="eventSubprocess1" id="BPMNShape_eventSubprocess1">
+        <omgdc:Bounds height="130.0" width="300.0" x="330.0" y="290.0"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="errorStart1" id="BPMNShape_errorStart1">
+        <omgdc:Bounds height="30.0" width="30.0" x="350.0" y="340.0"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="errorHandler1" id="BPMNShape_errorHandler1">
+        <omgdc:Bounds height="55.0" width="100.0" x="420.0" y="327.0"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="errorEnd1" id="BPMNShape_errorEnd1">
+        <omgdc:Bounds height="30.0" width="30.0" x="560.0" y="340.0"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="transaction1" id="BPMNShape_transaction1">
+        <omgdc:Bounds height="150.0" width="280.0" x="680.0" y="103.0"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="txStart1" id="BPMNShape_txStart1">
+        <omgdc:Bounds height="30.0" width="30.0" x="700.0" y="158.0"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="txTask1" id="BPMNShape_txTask1">
+        <omgdc:Bounds height="60.0" width="100.0" x="770.0" y="148.0"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="txEnd1" id="BPMNShape_txEnd1">
+        <omgdc:Bounds height="30.0" width="30.0" x="910.0" y="158.0"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge bpmnElement="flow1" id="BPMNEdge_flow1">
+        <omgdi:waypoint x="130.0" y="178.0"/>
+        <omgdi:waypoint x="180.0" y="178.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="flow2" id="BPMNEdge_flow2">
+        <omgdi:waypoint x="280.0" y="178.0"/>
+        <omgdi:waypoint x="330.0" y="178.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="flow3" id="BPMNEdge_flow3">
+        <omgdi:waypoint x="630.0" y="178.0"/>
+        <omgdi:waypoint x="680.0" y="178.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="flow4" id="BPMNEdge_flow4">
+        <omgdi:waypoint x="960.0" y="178.0"/>
+        <omgdi:waypoint x="1000.0" y="178.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="subFlow1" id="BPMNEdge_subFlow1">
+        <omgdi:waypoint x="380.0" y="173.0"/>
+        <omgdi:waypoint x="420.0" y="178.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="subFlow2" id="BPMNEdge_subFlow2">
+        <omgdi:waypoint x="520.0" y="178.0"/>
+        <omgdi:waypoint x="560.0" y="173.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="errFlow1" id="BPMNEdge_errFlow1">
+        <omgdi:waypoint x="380.0" y="355.0"/>
+        <omgdi:waypoint x="420.0" y="354.5"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="errFlow2" id="BPMNEdge_errFlow2">
+        <omgdi:waypoint x="520.0" y="354.5"/>
+        <omgdi:waypoint x="560.0" y="355.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="txFlow1" id="BPMNEdge_txFlow1">
+        <omgdi:waypoint x="730.0" y="173.0"/>
+        <omgdi:waypoint x="770.0" y="178.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="txFlow2" id="BPMNEdge_txFlow2">
+        <omgdi:waypoint x="870.0" y="178.0"/>
+        <omgdi:waypoint x="910.0" y="173.0"/>
+      </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
 </definitions>

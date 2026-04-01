@@ -155,12 +155,15 @@ export class BpmnEditorProvider implements vscode.CustomTextEditorProvider {
 				return;
 			}
 
+			const minimapEnabled = vscode.workspace.getConfiguration('flowableBpmnDesigner.editor').get<boolean>('minimap', false);
 			try {
 				await webviewPanel.webview.postMessage({
 					type: 'load-document',
 					xml: currentXml,
 					flowableState: extractFlowableDocumentState(currentXml),
+					minimapEnabled,
 				});
+				lastWrittenXml = currentXml;
 			} catch {
 				// Webview may have been disposed
 			}

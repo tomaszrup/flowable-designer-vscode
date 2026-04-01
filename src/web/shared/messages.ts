@@ -7,7 +7,7 @@ export interface BpmnValidationIssue {
 }
 
 export type HostToWebviewMessage =
-	| { type: 'load-document'; xml: string; flowableState: FlowableDocumentState }
+	| { type: 'load-document'; xml: string; flowableState: FlowableDocumentState; minimapEnabled: boolean }
 	| { type: 'request-svg' }
 	| { type: 'request-validation' };
 

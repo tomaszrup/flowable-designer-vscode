@@ -59,6 +59,40 @@
       <bpmndi:BPMNShape bpmnElement="endevent1" id="BPMNShape_endevent1">
         <omgdc:Bounds height="35.0" width="35.0" x="570.0" y="250.0"/>
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="signalstart1" id="BPMNShape_signalstart1">
+        <omgdc:Bounds height="35.0" width="35.0" x="90.0" y="350.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="messagestart1" id="BPMNShape_messagestart1">
+        <omgdc:Bounds height="35.0" width="35.0" x="90.0" y="420.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="signalcatch1" id="BPMNShape_signalcatch1">
+        <omgdc:Bounds height="35.0" width="35.0" x="370.0" y="350.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="messagecatch1" id="BPMNShape_messagecatch1">
+        <omgdc:Bounds height="35.0" width="35.0" x="370.0" y="420.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="errorend1" id="BPMNShape_errorend1">
+        <omgdc:Bounds height="35.0" width="35.0" x="570.0" y="350.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="terminateend1" id="BPMNShape_terminateend1">
+        <omgdc:Bounds height="35.0" width="35.0" x="570.0" y="420.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge bpmnElement="flow1" id="BPMNEdge_flow1">
+        <omgdi:waypoint x="125.0" y="267.5"/>
+        <omgdi:waypoint x="200.0" y="267.5"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="flow2" id="BPMNEdge_flow2">
+        <omgdi:waypoint x="305.0" y="267.5"/>
+        <omgdi:waypoint x="370.0" y="267.5"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="flow3" id="BPMNEdge_flow3">
+        <omgdi:waypoint x="405.0" y="267.5"/>
+        <omgdi:waypoint x="470.0" y="267.5"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="flow4" id="BPMNEdge_flow4">
+        <omgdi:waypoint x="505.0" y="267.5"/>
+        <omgdi:waypoint x="570.0" y="267.5"/>
+      </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
 </definitions>
