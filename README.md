@@ -2,6 +2,10 @@
 
 A VS Code custom editor for `.bpmn`, `.bpmn2`, and `.bpmn20.xml` files, built for compatibility with the legacy Eclipse Flowable Designer plugin. Open, edit, and save BPMN process definitions while preserving Flowable/Activiti extension attributes.
 
+## Legal Notice
+
+This project and its VS Code extension are independent community work. They are not affiliated with, endorsed by, or officially released by the Apache Software Foundation.
+
 ## Features
 
 ### Visual BPMN Editor
