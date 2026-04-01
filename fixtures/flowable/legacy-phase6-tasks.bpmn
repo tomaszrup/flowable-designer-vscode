@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:activiti="http://activiti.org/bpmn"
+  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+  xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC"
+  xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI"
+  targetNamespace="http://www.activiti.org/test"
+  id="definitions1">
+
+  <process id="sendReceiveManualProcess" name="Send Receive Manual Process" isExecutable="true">
+    <startEvent id="start1" name="Start"></startEvent>
+
+    <sendTask id="sendTask1" name="Send Notification"
+      activiti:class="com.example.SendDelegate"
+      activiti:resultVariableName="sendResult"
+      activiti:skipExpression="${skip}"
+      activiti:async="true"
+      activiti:exclusive="true">
+      <documentation>Send task documentation</documentation>
+      <extensionElements>
+        <activiti:field name="endpoint">
+          <activiti:string>http://example.com/notify</activiti:string>
+        </activiti:field>
+        <activiti:field name="method">
+          <activiti:expression>${httpMethod}</activiti:expression>
+        </activiti:field>
+        <activiti:executionListener event="start" activiti:class="com.example.SendStartListener"></activiti:executionListener>
+      </extensionElements>
+    </sendTask>
+
+    <receiveTask id="receiveTask1" name="Wait for Response"
+      activiti:async="true"
+      activiti:exclusive="false">
+      <documentation>Receive task - waits for signal</documentation>
+    </receiveTask>
+
+    <manualTask id="manualTask1" name="Manual Approval"
+      activiti:async="false"
+      activiti:exclusive="true">
+      <documentation>Manual task for human approval</documentation>
+      <extensionElements>
+        <activiti:executionListener event="end" activiti:delegateExpression="${approvalLogger}"></activiti:executionListener>
+      </extensionElements>
+    </manualTask>
+
+    <sendTask id="sendTask2" name="Send with Expression"
+      activiti:expression="${emailService.send(execution)}"
+      activiti:async="false">
+    </sendTask>
+
+    <sendTask id="sendTask3" name="Send with Delegate Expression"
+      activiti:delegateExpression="${sendDelegate}">
+    </sendTask>
+
+    <endEvent id="end1" name="End"></endEvent>
+
+    <sequenceFlow id="flow1" sourceRef="start1" targetRef="sendTask1"></sequenceFlow>
+    <sequenceFlow id="flow2" sourceRef="sendTask1" targetRef="receiveTask1"></sequenceFlow>
+    <sequenceFlow id="flow3" sourceRef="receiveTask1" targetRef="manualTask1"></sequenceFlow>
+    <sequenceFlow id="flow4" sourceRef="manualTask1" targetRef="sendTask2"></sequenceFlow>
+    <sequenceFlow id="flow5" sourceRef="sendTask2" targetRef="sendTask3"></sequenceFlow>
+    <sequenceFlow id="flow6" sourceRef="sendTask3" targetRef="end1"></sequenceFlow>
+  </process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="sendReceiveManualProcess">
+      <bpmndi:BPMNShape id="BPMNShape_start1" bpmnElement="start1">
+        <omgdc:Bounds x="100" y="200" width="36" height="36"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_sendTask1" bpmnElement="sendTask1">
+        <omgdc:Bounds x="200" y="178" width="100" height="80"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_receiveTask1" bpmnElement="receiveTask1">
+        <omgdc:Bounds x="350" y="178" width="100" height="80"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_manualTask1" bpmnElement="manualTask1">
+        <omgdc:Bounds x="500" y="178" width="100" height="80"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_sendTask2" bpmnElement="sendTask2">
+        <omgdc:Bounds x="650" y="178" width="100" height="80"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_sendTask3" bpmnElement="sendTask3">
+        <omgdc:Bounds x="800" y="178" width="100" height="80"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_end1" bpmnElement="end1">
+        <omgdc:Bounds x="936" y="200" width="36" height="36"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>

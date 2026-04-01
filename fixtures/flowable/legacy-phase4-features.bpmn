@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:activiti="http://activiti.org/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC" xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI" targetNamespace="http://www.activiti.org/processdef" id="definitions1">
+  <process id="phase4Process" name="Phase 4 Test Process" isExecutable="true">
+    <extensionElements>
+      <activiti:localization locale="en" name="Phase 4 Test Process EN">
+        <activiti:documentation>English description of the process</activiti:documentation>
+      </activiti:localization>
+      <activiti:localization locale="fr" name="Processus de test Phase 4">
+        <activiti:documentation>Description française du processus</activiti:documentation>
+      </activiti:localization>
+      <activiti:localization locale="de" name="Phase 4 Testprozess">
+      </activiti:localization>
+    </extensionElements>
+    <startEvent id="startEvent1" name="Start"></startEvent>
+    <userTask id="userTask1" name="Review Task" activiti:assignee="admin"></userTask>
+    <subProcess id="subprocess1" name="Embedded Sub Process">
+      <startEvent id="subStart1" name="Sub Start"></startEvent>
+      <userTask id="subTask1" name="Sub Task" activiti:async="true" activiti:exclusive="true"></userTask>
+      <endEvent id="subEnd1" name="Sub End"></endEvent>
+      <sequenceFlow id="subFlow1" sourceRef="subStart1" targetRef="subTask1"></sequenceFlow>
+      <sequenceFlow id="subFlow2" sourceRef="subTask1" targetRef="subEnd1"></sequenceFlow>
+    </subProcess>
+    <subProcess id="eventSubprocess1" name="Error Handler" triggeredByEvent="true">
+      <startEvent id="errorStart1" name="Error Start">
+        <errorEventDefinition errorRef="genericError"></errorEventDefinition>
+      </startEvent>
+      <serviceTask id="errorHandler1" name="Handle Error" activiti:class="com.example.ErrorHandler"></serviceTask>
+      <endEvent id="errorEnd1" name="Error End"></endEvent>
+      <sequenceFlow id="errFlow1" sourceRef="errorStart1" targetRef="errorHandler1"></sequenceFlow>
+      <sequenceFlow id="errFlow2" sourceRef="errorHandler1" targetRef="errorEnd1"></sequenceFlow>
+    </subProcess>
+    <transaction id="transaction1" name="Payment Transaction">
+      <startEvent id="txStart1" name="Tx Start"></startEvent>
+      <serviceTask id="txTask1" name="Process Payment" activiti:class="com.example.PaymentService" activiti:async="true"></serviceTask>
+      <endEvent id="txEnd1" name="Tx End"></endEvent>
+      <sequenceFlow id="txFlow1" sourceRef="txStart1" targetRef="txTask1"></sequenceFlow>
+      <sequenceFlow id="txFlow2" sourceRef="txTask1" targetRef="txEnd1"></sequenceFlow>
+    </transaction>
+    <endEvent id="endEvent1" name="End"></endEvent>
+    <sequenceFlow id="flow1" sourceRef="startEvent1" targetRef="userTask1"></sequenceFlow>
+    <sequenceFlow id="flow2" sourceRef="userTask1" targetRef="subprocess1"></sequenceFlow>
+    <sequenceFlow id="flow3" sourceRef="subprocess1" targetRef="transaction1"></sequenceFlow>
+    <sequenceFlow id="flow4" sourceRef="transaction1" targetRef="endEvent1"></sequenceFlow>
+  </process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_phase4Process">
+    <bpmndi:BPMNPlane bpmnElement="phase4Process" id="BPMNPlane_phase4Process">
+      <bpmndi:BPMNShape bpmnElement="startEvent1" id="BPMNShape_startEvent1">
+        <omgdc:Bounds height="30.0" width="30.0" x="100.0" y="163.0"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="userTask1" id="BPMNShape_userTask1">
+        <omgdc:Bounds height="80.0" width="100.0" x="180.0" y="138.0"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="subprocess1" id="BPMNShape_subprocess1">
+        <omgdc:Bounds height="150.0" width="300.0" x="330.0" y="103.0"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="endEvent1" id="BPMNShape_endEvent1">
+        <omgdc:Bounds height="28.0" width="28.0" x="1000.0" y="164.0"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>

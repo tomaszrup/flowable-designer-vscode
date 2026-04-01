@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:activiti="http://activiti.org/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC" xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI" typeLanguage="http://www.w3.org/2001/XMLSchema" expressionLanguage="http://www.w3.org/1999/XPath" targetNamespace="http://www.activiti.org/test">
+  <process id="shellTaskProcess" name="Shell Task Process" isExecutable="true">
+    <startEvent id="startevent1" name="Start"/>
+    <serviceTask id="shelltask1" name="Run Script" activiti:type="shell">
+      <extensionElements>
+        <activiti:field name="command">
+          <activiti:string>/usr/bin/env</activiti:string>
+        </activiti:field>
+        <activiti:field name="arg1">
+          <activiti:string>bash</activiti:string>
+        </activiti:field>
+        <activiti:field name="arg2">
+          <activiti:string>-c</activiti:string>
+        </activiti:field>
+        <activiti:field name="arg3">
+          <activiti:string>echo hello</activiti:string>
+        </activiti:field>
+        <activiti:field name="wait">
+          <activiti:string>true</activiti:string>
+        </activiti:field>
+        <activiti:field name="redirectError">
+          <activiti:string>true</activiti:string>
+        </activiti:field>
+        <activiti:field name="cleanEnv">
+          <activiti:string>false</activiti:string>
+        </activiti:field>
+        <activiti:field name="outputVariable">
+          <activiti:string>shellOutput</activiti:string>
+        </activiti:field>
+        <activiti:field name="errorCodeVariable">
+          <activiti:string>shellError</activiti:string>
+        </activiti:field>
+        <activiti:field name="directory">
+          <activiti:string>/tmp</activiti:string>
+        </activiti:field>
+      </extensionElements>
+    </serviceTask>
+    <endEvent id="endevent1" name="End"/>
+    <sequenceFlow id="flow1" sourceRef="startevent1" targetRef="shelltask1"/>
+    <sequenceFlow id="flow2" sourceRef="shelltask1" targetRef="endevent1"/>
+  </process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_shellTaskProcess">
+    <bpmndi:BPMNPlane bpmnElement="shellTaskProcess" id="BPMNPlane_shellTaskProcess">
+      <bpmndi:BPMNShape bpmnElement="startevent1" id="BPMNShape_startevent1">
+        <omgdc:Bounds height="35.0" width="35.0" x="90.0" y="200.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="shelltask1" id="BPMNShape_shelltask1">
+        <omgdc:Bounds height="55.0" width="105.0" x="180.0" y="190.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="endevent1" id="BPMNShape_endevent1">
+        <omgdc:Bounds height="35.0" width="35.0" x="350.0" y="200.0"/>
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>

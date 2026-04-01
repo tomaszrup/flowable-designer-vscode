@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+  xmlns:activiti="http://activiti.org/bpmn"
+  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+  xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC"
+  xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI"
+  typeLanguage="http://www.w3.org/2001/XMLSchema"
+  expressionLanguage="http://www.w3.org/1999/XPath"
+  targetNamespace="http://www.activiti.org/test">
+  <process id="sequenceFlowProcess" name="Sequence Flow Process" isExecutable="true">
+    <startEvent id="startevent1" name="Start" />
+    <exclusiveGateway id="gateway1" name="Approve?" />
+    <userTask id="approveTask" name="Approve" activiti:assignee="kermit" />
+    <userTask id="rejectTask" name="Reject" activiti:assignee="gonzo" />
+    <endEvent id="endevent1" name="Done" />
+    <sequenceFlow id="flow1" sourceRef="startevent1" targetRef="gateway1" />
+    <sequenceFlow id="flow2" name="Yes" sourceRef="gateway1" targetRef="approveTask" activiti:skipExpression="${skipApproval}">
+      <conditionExpression xsi:type="tFormalExpression">${approved == true}</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="flow3" name="No" sourceRef="gateway1" targetRef="rejectTask">
+      <conditionExpression xsi:type="tFormalExpression">${approved == false}</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="flow4" sourceRef="approveTask" targetRef="endevent1" />
+    <sequenceFlow id="flow5" sourceRef="rejectTask" targetRef="endevent1" />
+  </process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_sequenceFlowProcess">
+    <bpmndi:BPMNPlane bpmnElement="sequenceFlowProcess" id="BPMNPlane_sequenceFlowProcess">
+      <bpmndi:BPMNShape bpmnElement="startevent1" id="BPMNShape_startevent1">
+        <omgdc:Bounds height="35.0" width="35.0" x="90.0" y="250.0" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="gateway1" id="BPMNShape_gateway1">
+        <omgdc:Bounds height="40.0" width="40.0" x="180.0" y="248.0" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="approveTask" id="BPMNShape_approveTask">
+        <omgdc:Bounds height="55.0" width="105.0" x="280.0" y="180.0" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="rejectTask" id="BPMNShape_rejectTask">
+        <omgdc:Bounds height="55.0" width="105.0" x="280.0" y="320.0" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="endevent1" id="BPMNShape_endevent1">
+        <omgdc:Bounds height="35.0" width="35.0" x="440.0" y="250.0" />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>

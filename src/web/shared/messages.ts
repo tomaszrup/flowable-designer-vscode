@@ -1,0 +1,20 @@
+import type { FlowableDocumentState } from '../flowable/types';
+
+export interface BpmnValidationIssue {
+	elementId: string;
+	message: string;
+	severity: 'error' | 'warning';
+}
+
+export type HostToWebviewMessage =
+	| { type: 'load-document'; xml: string; flowableState: FlowableDocumentState }
+	| { type: 'request-svg' }
+	| { type: 'request-validation' };
+
+export type WebviewToHostMessage =
+	| { type: 'ready' }
+	| { type: 'save-document'; xml: string; flowableState: FlowableDocumentState }
+	| { type: 'show-error'; message: string }
+	| { type: 'open-source' }
+	| { type: 'svg-export'; svg: string }
+	| { type: 'validation-result'; issues: BpmnValidationIssue[] };

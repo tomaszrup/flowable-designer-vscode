@@ -1,0 +1,268 @@
+
+<!doctype html>
+<html lang="en">
+
+<head>
+    <title>Code coverage report for fixtures/flowable/legacy-phase4-features.bpmn</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../../prettify.css" />
+    <link rel="stylesheet" href="../../base.css" />
+    <link rel="shortcut icon" type="image/x-icon" href="../../favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style type='text/css'>
+        .coverage-summary .sorter {
+            background-image: url(../../sort-arrow-sprite.png);
+        }
+    </style>
+</head>
+    
+<body>
+<div class='wrapper'>
+    <div class='pad1'>
+        <h1><a href="../../index.html">All files</a> / <a href="index.html">fixtures/flowable</a> legacy-phase4-features.bpmn</h1>
+        <div class='clearfix'>
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Statements</span>
+                <span class='fraction'>0/0</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Branches</span>
+                <span class='fraction'>0/0</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Functions</span>
+                <span class='fraction'>0/0</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Lines</span>
+                <span class='fraction'>0/0</span>
+            </div>
+        
+            
+        </div>
+        <p class="quiet">
+            Press <em>n</em> or <em>j</em> to go to the next uncovered block, <em>b</em>, <em>p</em> or <em>k</em> for the previous block.
+        </p>
+        <template id="filterTemplate">
+            <div class="quiet">
+                Filter:
+                <input type="search" id="fileSearch">
+            </div>
+        </template>
+    </div>
+    <div class='status-line low'></div>
+    <pre><table class="coverage">
+<tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
+<a name='L2'></a><a href='#L2'>2</a>
+<a name='L3'></a><a href='#L3'>3</a>
+<a name='L4'></a><a href='#L4'>4</a>
+<a name='L5'></a><a href='#L5'>5</a>
+<a name='L6'></a><a href='#L6'>6</a>
+<a name='L7'></a><a href='#L7'>7</a>
+<a name='L8'></a><a href='#L8'>8</a>
+<a name='L9'></a><a href='#L9'>9</a>
+<a name='L10'></a><a href='#L10'>10</a>
+<a name='L11'></a><a href='#L11'>11</a>
+<a name='L12'></a><a href='#L12'>12</a>
+<a name='L13'></a><a href='#L13'>13</a>
+<a name='L14'></a><a href='#L14'>14</a>
+<a name='L15'></a><a href='#L15'>15</a>
+<a name='L16'></a><a href='#L16'>16</a>
+<a name='L17'></a><a href='#L17'>17</a>
+<a name='L18'></a><a href='#L18'>18</a>
+<a name='L19'></a><a href='#L19'>19</a>
+<a name='L20'></a><a href='#L20'>20</a>
+<a name='L21'></a><a href='#L21'>21</a>
+<a name='L22'></a><a href='#L22'>22</a>
+<a name='L23'></a><a href='#L23'>23</a>
+<a name='L24'></a><a href='#L24'>24</a>
+<a name='L25'></a><a href='#L25'>25</a>
+<a name='L26'></a><a href='#L26'>26</a>
+<a name='L27'></a><a href='#L27'>27</a>
+<a name='L28'></a><a href='#L28'>28</a>
+<a name='L29'></a><a href='#L29'>29</a>
+<a name='L30'></a><a href='#L30'>30</a>
+<a name='L31'></a><a href='#L31'>31</a>
+<a name='L32'></a><a href='#L32'>32</a>
+<a name='L33'></a><a href='#L33'>33</a>
+<a name='L34'></a><a href='#L34'>34</a>
+<a name='L35'></a><a href='#L35'>35</a>
+<a name='L36'></a><a href='#L36'>36</a>
+<a name='L37'></a><a href='#L37'>37</a>
+<a name='L38'></a><a href='#L38'>38</a>
+<a name='L39'></a><a href='#L39'>39</a>
+<a name='L40'></a><a href='#L40'>40</a>
+<a name='L41'></a><a href='#L41'>41</a>
+<a name='L42'></a><a href='#L42'>42</a>
+<a name='L43'></a><a href='#L43'>43</a>
+<a name='L44'></a><a href='#L44'>44</a>
+<a name='L45'></a><a href='#L45'>45</a>
+<a name='L46'></a><a href='#L46'>46</a>
+<a name='L47'></a><a href='#L47'>47</a>
+<a name='L48'></a><a href='#L48'>48</a>
+<a name='L49'></a><a href='#L49'>49</a>
+<a name='L50'></a><a href='#L50'>50</a>
+<a name='L51'></a><a href='#L51'>51</a>
+<a name='L52'></a><a href='#L52'>52</a>
+<a name='L53'></a><a href='#L53'>53</a>
+<a name='L54'></a><a href='#L54'>54</a>
+<a name='L55'></a><a href='#L55'>55</a>
+<a name='L56'></a><a href='#L56'>56</a>
+<a name='L57'></a><a href='#L57'>57</a>
+<a name='L58'></a><a href='#L58'>58</a>
+<a name='L59'></a><a href='#L59'>59</a>
+<a name='L60'></a><a href='#L60'>60</a>
+<a name='L61'></a><a href='#L61'>61</a>
+<a name='L62'></a><a href='#L62'>62</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:activiti="http://activiti.org/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC" xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI" targetNamespace="http://www.activiti.org/processdef" id="definitions1"&gt;
+  &lt;process id="phase4Process" name="Phase 4 Test Process" isExecutable="true"&gt;
+    &lt;extensionElements&gt;
+      &lt;activiti:localization locale="en" name="Phase 4 Test Process EN"&gt;
+        &lt;activiti:documentation&gt;English description of the process&lt;/activiti:documentation&gt;
+      &lt;/activiti:localization&gt;
+      &lt;activiti:localization locale="fr" name="Processus de test Phase 4"&gt;
+        &lt;activiti:documentation&gt;Description française du processus&lt;/activiti:documentation&gt;
+      &lt;/activiti:localization&gt;
+      &lt;activiti:localization locale="de" name="Phase 4 Testprozess"&gt;
+      &lt;/activiti:localization&gt;
+    &lt;/extensionElements&gt;
+    &lt;startEvent id="startEvent1" name="Start"&gt;&lt;/startEvent&gt;
+    &lt;userTask id="userTask1" name="Review Task" activiti:assignee="admin"&gt;&lt;/userTask&gt;
+    &lt;subProcess id="subprocess1" name="Embedded Sub Process"&gt;
+      &lt;startEvent id="subStart1" name="Sub Start"&gt;&lt;/startEvent&gt;
+      &lt;userTask id="subTask1" name="Sub Task" activiti:async="true" activiti:exclusive="true"&gt;&lt;/userTask&gt;
+      &lt;endEvent id="subEnd1" name="Sub End"&gt;&lt;/endEvent&gt;
+      &lt;sequenceFlow id="subFlow1" sourceRef="subStart1" targetRef="subTask1"&gt;&lt;/sequenceFlow&gt;
+      &lt;sequenceFlow id="subFlow2" sourceRef="subTask1" targetRef="subEnd1"&gt;&lt;/sequenceFlow&gt;
+    &lt;/subProcess&gt;
+    &lt;subProcess id="eventSubprocess1" name="Error Handler" triggeredByEvent="true"&gt;
+      &lt;startEvent id="errorStart1" name="Error Start"&gt;
+        &lt;errorEventDefinition errorRef="genericError"&gt;&lt;/errorEventDefinition&gt;
+      &lt;/startEvent&gt;
+      &lt;serviceTask id="errorHandler1" name="Handle Error" activiti:class="com.example.ErrorHandler"&gt;&lt;/serviceTask&gt;
+      &lt;endEvent id="errorEnd1" name="Error End"&gt;&lt;/endEvent&gt;
+      &lt;sequenceFlow id="errFlow1" sourceRef="errorStart1" targetRef="errorHandler1"&gt;&lt;/sequenceFlow&gt;
+      &lt;sequenceFlow id="errFlow2" sourceRef="errorHandler1" targetRef="errorEnd1"&gt;&lt;/sequenceFlow&gt;
+    &lt;/subProcess&gt;
+    &lt;transaction id="transaction1" name="Payment Transaction"&gt;
+      &lt;startEvent id="txStart1" name="Tx Start"&gt;&lt;/startEvent&gt;
+      &lt;serviceTask id="txTask1" name="Process Payment" activiti:class="com.example.PaymentService" activiti:async="true"&gt;&lt;/serviceTask&gt;
+      &lt;endEvent id="txEnd1" name="Tx End"&gt;&lt;/endEvent&gt;
+      &lt;sequenceFlow id="txFlow1" sourceRef="txStart1" targetRef="txTask1"&gt;&lt;/sequenceFlow&gt;
+      &lt;sequenceFlow id="txFlow2" sourceRef="txTask1" targetRef="txEnd1"&gt;&lt;/sequenceFlow&gt;
+    &lt;/transaction&gt;
+    &lt;endEvent id="endEvent1" name="End"&gt;&lt;/endEvent&gt;
+    &lt;sequenceFlow id="flow1" sourceRef="startEvent1" targetRef="userTask1"&gt;&lt;/sequenceFlow&gt;
+    &lt;sequenceFlow id="flow2" sourceRef="userTask1" targetRef="subprocess1"&gt;&lt;/sequenceFlow&gt;
+    &lt;sequenceFlow id="flow3" sourceRef="subprocess1" targetRef="transaction1"&gt;&lt;/sequenceFlow&gt;
+    &lt;sequenceFlow id="flow4" sourceRef="transaction1" targetRef="endEvent1"&gt;&lt;/sequenceFlow&gt;
+  &lt;/process&gt;
+  &lt;bpmndi:BPMNDiagram id="BPMNDiagram_phase4Process"&gt;
+    &lt;bpmndi:BPMNPlane bpmnElement="phase4Process" id="BPMNPlane_phase4Process"&gt;
+      &lt;bpmndi:BPMNShape bpmnElement="startEvent1" id="BPMNShape_startEvent1"&gt;
+        &lt;omgdc:Bounds height="30.0" width="30.0" x="100.0" y="163.0"&gt;&lt;/omgdc:Bounds&gt;
+      &lt;/bpmndi:BPMNShape&gt;
+      &lt;bpmndi:BPMNShape bpmnElement="userTask1" id="BPMNShape_userTask1"&gt;
+        &lt;omgdc:Bounds height="80.0" width="100.0" x="180.0" y="138.0"&gt;&lt;/omgdc:Bounds&gt;
+      &lt;/bpmndi:BPMNShape&gt;
+      &lt;bpmndi:BPMNShape bpmnElement="subprocess1" id="BPMNShape_subprocess1"&gt;
+        &lt;omgdc:Bounds height="150.0" width="300.0" x="330.0" y="103.0"&gt;&lt;/omgdc:Bounds&gt;
+      &lt;/bpmndi:BPMNShape&gt;
+      &lt;bpmndi:BPMNShape bpmnElement="endEvent1" id="BPMNShape_endEvent1"&gt;
+        &lt;omgdc:Bounds height="28.0" width="28.0" x="1000.0" y="164.0"&gt;&lt;/omgdc:Bounds&gt;
+      &lt;/bpmndi:BPMNShape&gt;
+    &lt;/bpmndi:BPMNPlane&gt;
+  &lt;/bpmndi:BPMNDiagram&gt;
+&lt;/definitions&gt;
+&nbsp;</pre></td></tr></table></pre>
+
+                <div class='push'></div><!-- for sticky footer -->
+            </div><!-- /wrapper -->
+            <div class='footer quiet pad2 space-top1 center small'>
+                Code coverage generated by
+                <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
+                at 2026-04-01T14:22:28.213Z
+            </div>
+        <script src="../../prettify.js"></script>
+        <script>
+            window.onload = function () {
+                prettyPrint();
+            };
+        </script>
+        <script src="../../sorter.js"></script>
+        <script src="../../block-navigation.js"></script>
+    </body>
+</html>
+    

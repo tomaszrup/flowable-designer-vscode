@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:activiti="http://activiti.org/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC" xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI" typeLanguage="http://www.w3.org/2001/XMLSchema" expressionLanguage="http://www.w3.org/1999/XPath" targetNamespace="http://www.activiti.org/test">
+  <signal id="alertSignal" name="Alert Signal"/>
+  <message id="orderMessage" name="Order Message"/>
+  <error id="businessError" name="Business Error" errorCode="ERR-001"/>
+  <process id="boundaryEventProcess" name="Boundary Event Process" isExecutable="true">
+    <startEvent id="startevent1" name="Start"/>
+    <userTask id="usertask1" name="Wait for Timer" activiti:assignee="kermit"/>
+    <userTask id="usertask2" name="Wait for Error" activiti:assignee="gonzo"/>
+    <serviceTask id="servicetask1" name="Wait for Signal" activiti:class="com.example.SignalService"/>
+    <serviceTask id="servicetask2" name="Wait for Message" activiti:class="com.example.MessageService"/>
+    <endEvent id="endevent1" name="Done"/>
+    <boundaryEvent id="boundarytimer1" name="Timer" attachedToRef="usertask1" cancelActivity="true">
+      <timerEventDefinition>
+        <timeDuration>PT5M</timeDuration>
+      </timerEventDefinition>
+    </boundaryEvent>
+    <boundaryEvent id="boundaryerror1" name="Error" attachedToRef="usertask2">
+      <errorEventDefinition errorRef="businessError"/>
+    </boundaryEvent>
+    <boundaryEvent id="boundarysignal1" name="Signal" attachedToRef="servicetask1" cancelActivity="false">
+      <signalEventDefinition signalRef="alertSignal"/>
+    </boundaryEvent>
+    <boundaryEvent id="boundarymessage1" name="Message" attachedToRef="servicetask2" cancelActivity="true">
+      <messageEventDefinition messageRef="orderMessage"/>
+    </boundaryEvent>
+    <sequenceFlow id="flow1" sourceRef="startevent1" targetRef="usertask1"/>
+    <sequenceFlow id="flow2" sourceRef="usertask1" targetRef="usertask2"/>
+    <sequenceFlow id="flow3" sourceRef="usertask2" targetRef="servicetask1"/>
+    <sequenceFlow id="flow4" sourceRef="servicetask1" targetRef="servicetask2"/>
+    <sequenceFlow id="flow5" sourceRef="servicetask2" targetRef="endevent1"/>
+    <sequenceFlow id="flow6" sourceRef="boundarytimer1" targetRef="endevent1"/>
+    <sequenceFlow id="flow7" sourceRef="boundaryerror1" targetRef="endevent1"/>
+    <sequenceFlow id="flow8" sourceRef="boundarysignal1" targetRef="endevent1"/>
+    <sequenceFlow id="flow9" sourceRef="boundarymessage1" targetRef="endevent1"/>
+  </process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_boundaryEventProcess">
+    <bpmndi:BPMNPlane bpmnElement="boundaryEventProcess" id="BPMNPlane_boundaryEventProcess">
+      <bpmndi:BPMNShape bpmnElement="startevent1" id="BPMNShape_startevent1">
+        <omgdc:Bounds height="35.0" width="35.0" x="90.0" y="250.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="usertask1" id="BPMNShape_usertask1">
+        <omgdc:Bounds height="55.0" width="105.0" x="180.0" y="240.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="usertask2" id="BPMNShape_usertask2">
+        <omgdc:Bounds height="55.0" width="105.0" x="340.0" y="240.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="servicetask1" id="BPMNShape_servicetask1">
+        <omgdc:Bounds height="55.0" width="105.0" x="500.0" y="240.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="servicetask2" id="BPMNShape_servicetask2">
+        <omgdc:Bounds height="55.0" width="105.0" x="660.0" y="240.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="endevent1" id="BPMNShape_endevent1">
+        <omgdc:Bounds height="35.0" width="35.0" x="820.0" y="250.0"/>
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>

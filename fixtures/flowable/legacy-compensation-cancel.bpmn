@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:activiti="http://activiti.org/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC" xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI" typeLanguage="http://www.w3.org/2001/XMLSchema" expressionLanguage="http://www.w3.org/1999/XPath" targetNamespace="http://www.activiti.org/test">
+  <process id="compensationCancelProcess" name="Compensation and Cancel Process" isExecutable="true">
+    <startEvent id="startevent1" name="Start"/>
+    <serviceTask id="servicetask1" name="Book Hotel" activiti:class="com.example.BookHotel"/>
+    <serviceTask id="compensate_servicetask1" name="Cancel Hotel" activiti:class="com.example.CancelHotel" isForCompensation="true"/>
+    <boundaryEvent id="boundarycompensation1" name="Compensation" attachedToRef="servicetask1">
+      <compensateEventDefinition/>
+    </boundaryEvent>
+    <intermediateThrowEvent id="throwcompensation1" name="Throw Compensation">
+      <compensateEventDefinition activityRef="servicetask1"/>
+    </intermediateThrowEvent>
+    <endEvent id="endevent1" name="End"/>
+    <sequenceFlow id="flow1" sourceRef="startevent1" targetRef="servicetask1"/>
+    <sequenceFlow id="flow2" sourceRef="servicetask1" targetRef="throwcompensation1"/>
+    <sequenceFlow id="flow3" sourceRef="throwcompensation1" targetRef="endevent1"/>
+    <association id="assoc1" sourceRef="boundarycompensation1" targetRef="compensate_servicetask1"/>
+  </process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_compensationCancelProcess">
+    <bpmndi:BPMNPlane bpmnElement="compensationCancelProcess" id="BPMNPlane_compensationCancelProcess">
+      <bpmndi:BPMNShape bpmnElement="startevent1" id="BPMNShape_startevent1">
+        <omgdc:Bounds height="35.0" width="35.0" x="90.0" y="200.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="servicetask1" id="BPMNShape_servicetask1">
+        <omgdc:Bounds height="55.0" width="105.0" x="180.0" y="190.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="compensate_servicetask1" id="BPMNShape_compensate_servicetask1">
+        <omgdc:Bounds height="55.0" width="105.0" x="180.0" y="310.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="throwcompensation1" id="BPMNShape_throwcompensation1">
+        <omgdc:Bounds height="35.0" width="35.0" x="350.0" y="200.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="endevent1" id="BPMNShape_endevent1">
+        <omgdc:Bounds height="35.0" width="35.0" x="450.0" y="200.0"/>
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>

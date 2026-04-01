@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:activiti="http://activiti.org/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC" xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI" typeLanguage="http://www.w3.org/2001/XMLSchema" expressionLanguage="http://www.w3.org/1999/XPath" targetNamespace="http://www.activiti.org/test">
+  <process id="httpTaskProcess" name="Http Task Process" isExecutable="true">
+    <startEvent id="startevent1" name="Start"/>
+    <serviceTask id="httptask1" name="Call REST API" activiti:type="http">
+      <extensionElements>
+        <activiti:field name="requestMethod">
+          <activiti:string>GET</activiti:string>
+        </activiti:field>
+        <activiti:field name="requestUrl">
+          <activiti:string>https://api.example.com/data</activiti:string>
+        </activiti:field>
+        <activiti:field name="requestHeaders">
+          <activiti:string>Content-Type: application/json</activiti:string>
+        </activiti:field>
+        <activiti:field name="requestTimeout">
+          <activiti:string>5000</activiti:string>
+        </activiti:field>
+        <activiti:field name="disallowRedirects">
+          <activiti:string>false</activiti:string>
+        </activiti:field>
+        <activiti:field name="failStatusCodes">
+          <activiti:string>400,500</activiti:string>
+        </activiti:field>
+        <activiti:field name="ignoreException">
+          <activiti:string>false</activiti:string>
+        </activiti:field>
+        <activiti:field name="saveResponseParameters">
+          <activiti:string>true</activiti:string>
+        </activiti:field>
+      </extensionElements>
+    </serviceTask>
+    <serviceTask id="httptask2" name="POST Request" activiti:type="http">
+      <extensionElements>
+        <activiti:field name="requestMethod">
+          <activiti:string>POST</activiti:string>
+        </activiti:field>
+        <activiti:field name="requestUrl">
+          <activiti:string>https://api.example.com/submit</activiti:string>
+        </activiti:field>
+        <activiti:field name="requestBody">
+          <activiti:string>{"key": "value"}</activiti:string>
+        </activiti:field>
+      </extensionElements>
+    </serviceTask>
+    <endEvent id="endevent1" name="End"/>
+    <sequenceFlow id="flow1" sourceRef="startevent1" targetRef="httptask1"/>
+    <sequenceFlow id="flow2" sourceRef="httptask1" targetRef="httptask2"/>
+    <sequenceFlow id="flow3" sourceRef="httptask2" targetRef="endevent1"/>
+  </process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_httpTaskProcess">
+    <bpmndi:BPMNPlane bpmnElement="httpTaskProcess" id="BPMNPlane_httpTaskProcess">
+      <bpmndi:BPMNShape bpmnElement="startevent1" id="BPMNShape_startevent1">
+        <omgdc:Bounds height="35.0" width="35.0" x="90.0" y="200.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="httptask1" id="BPMNShape_httptask1">
+        <omgdc:Bounds height="55.0" width="105.0" x="180.0" y="190.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="httptask2" id="BPMNShape_httptask2">
+        <omgdc:Bounds height="55.0" width="105.0" x="340.0" y="190.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="endevent1" id="BPMNShape_endevent1">
+        <omgdc:Bounds height="35.0" width="35.0" x="500.0" y="200.0"/>
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>

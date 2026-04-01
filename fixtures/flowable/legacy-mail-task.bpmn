@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+  xmlns:activiti="http://activiti.org/bpmn"
+  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+  xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC"
+  xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI"
+  typeLanguage="http://www.w3.org/2001/XMLSchema"
+  expressionLanguage="http://www.w3.org/1999/XPath"
+  targetNamespace="http://www.activiti.org/test">
+  <process id="mailTaskProcess" name="Mail Task Process" isExecutable="true">
+    <startEvent id="startevent1" name="Start" />
+    <serviceTask id="mailtask1" name="Send Email" activiti:type="mail">
+      <extensionElements>
+        <activiti:field name="to">
+          <activiti:string>user@example.com</activiti:string>
+        </activiti:field>
+        <activiti:field name="from">
+          <activiti:string>noreply@example.com</activiti:string>
+        </activiti:field>
+        <activiti:field name="subject">
+          <activiti:string>Task Notification</activiti:string>
+        </activiti:field>
+        <activiti:field name="cc">
+          <activiti:string>manager@example.com</activiti:string>
+        </activiti:field>
+        <activiti:field name="bcc">
+          <activiti:string>audit@example.com</activiti:string>
+        </activiti:field>
+        <activiti:field name="charset">
+          <activiti:string>UTF-8</activiti:string>
+        </activiti:field>
+        <activiti:field name="html">
+          <activiti:string>&lt;h1&gt;Hello&lt;/h1&gt;&lt;p&gt;Your task is ready.&lt;/p&gt;</activiti:string>
+        </activiti:field>
+        <activiti:field name="text">
+          <activiti:string>Hello, your task is ready.</activiti:string>
+        </activiti:field>
+      </extensionElements>
+    </serviceTask>
+    <endEvent id="endevent1" name="Done" />
+    <sequenceFlow id="flow1" sourceRef="startevent1" targetRef="mailtask1" />
+    <sequenceFlow id="flow2" sourceRef="mailtask1" targetRef="endevent1" />
+  </process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_mailTaskProcess">
+    <bpmndi:BPMNPlane bpmnElement="mailTaskProcess" id="BPMNPlane_mailTaskProcess">
+      <bpmndi:BPMNShape bpmnElement="startevent1" id="BPMNShape_startevent1">
+        <omgdc:Bounds height="35.0" width="35.0" x="90.0" y="250.0" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="mailtask1" id="BPMNShape_mailtask1">
+        <omgdc:Bounds height="55.0" width="105.0" x="200.0" y="240.0" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="endevent1" id="BPMNShape_endevent1">
+        <omgdc:Bounds height="35.0" width="35.0" x="370.0" y="250.0" />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>

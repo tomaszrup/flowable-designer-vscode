@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+  xmlns:activiti="http://activiti.org/bpmn"
+  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+  xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC"
+  xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI"
+  typeLanguage="http://www.w3.org/2001/XMLSchema"
+  expressionLanguage="http://www.w3.org/1999/XPath"
+  targetNamespace="http://www.activiti.org/test">
+  <process id="multiInstanceProcess" name="Multi Instance Process" isExecutable="true">
+    <startEvent id="startevent1" name="Start" />
+    <userTask id="reviewTask" name="Review" activiti:assignee="${assignee}">
+      <multiInstanceLoopCharacteristics isSequential="true" activiti:collection="${reviewers}" activiti:elementVariable="assignee">
+        <loopCardinality>3</loopCardinality>
+        <completionCondition>${nrOfCompletedInstances/nrOfInstances >= 0.6}</completionCondition>
+      </multiInstanceLoopCharacteristics>
+    </userTask>
+    <serviceTask id="servicetask1" name="Notify" activiti:class="com.example.NotifyDelegate">
+      <multiInstanceLoopCharacteristics isSequential="false" activiti:collection="${recipients}" activiti:elementVariable="recipient" />
+    </serviceTask>
+    <endEvent id="endevent1" name="Done" />
+    <sequenceFlow id="flow1" sourceRef="startevent1" targetRef="reviewTask" />
+    <sequenceFlow id="flow2" sourceRef="reviewTask" targetRef="servicetask1" />
+    <sequenceFlow id="flow3" sourceRef="servicetask1" targetRef="endevent1" />
+  </process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_multiInstanceProcess">
+    <bpmndi:BPMNPlane bpmnElement="multiInstanceProcess" id="BPMNPlane_multiInstanceProcess">
+      <bpmndi:BPMNShape bpmnElement="startevent1" id="BPMNShape_startevent1">
+        <omgdc:Bounds height="35.0" width="35.0" x="90.0" y="250.0" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="reviewTask" id="BPMNShape_reviewTask">
+        <omgdc:Bounds height="55.0" width="105.0" x="200.0" y="240.0" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="servicetask1" id="BPMNShape_servicetask1">
+        <omgdc:Bounds height="55.0" width="105.0" x="370.0" y="240.0" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="endevent1" id="BPMNShape_endevent1">
+        <omgdc:Bounds height="35.0" width="35.0" x="540.0" y="250.0" />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>

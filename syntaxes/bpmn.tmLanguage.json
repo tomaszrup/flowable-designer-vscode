@@ -1,0 +1,6 @@
+{
+	"scopeName": "text.xml.bpmn",
+	"patterns": [
+		{ "include": "text.xml" }
+	]
+}

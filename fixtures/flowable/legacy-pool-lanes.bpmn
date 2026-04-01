@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:activiti="http://activiti.org/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC" xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI" targetNamespace="http://www.activiti.org/processdef" id="definitions1">
+  <collaboration id="collaboration1">
+    <participant id="pool1" name="Order Pool" processRef="poolProcess"></participant>
+  </collaboration>
+  <process id="poolProcess" name="Pool Process" isExecutable="true">
+    <laneSet id="laneSet1">
+      <lane id="lane1" name="Manager Lane">
+        <flowNodeRef>startEvent1</flowNodeRef>
+        <flowNodeRef>approveTask</flowNodeRef>
+      </lane>
+      <lane id="lane2" name="Worker Lane">
+        <flowNodeRef>executeTask</flowNodeRef>
+        <flowNodeRef>endEvent1</flowNodeRef>
+      </lane>
+    </laneSet>
+    <startEvent id="startEvent1" name="Start"></startEvent>
+    <userTask id="approveTask" name="Approve" activiti:assignee="manager"></userTask>
+    <serviceTask id="executeTask" name="Execute" activiti:class="com.example.Executor"></serviceTask>
+    <endEvent id="endEvent1" name="End"></endEvent>
+    <sequenceFlow id="flow1" sourceRef="startEvent1" targetRef="approveTask"></sequenceFlow>
+    <sequenceFlow id="flow2" sourceRef="approveTask" targetRef="executeTask"></sequenceFlow>
+    <sequenceFlow id="flow3" sourceRef="executeTask" targetRef="endEvent1"></sequenceFlow>
+  </process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_poolProcess">
+    <bpmndi:BPMNPlane bpmnElement="collaboration1" id="BPMNPlane_poolProcess">
+      <bpmndi:BPMNShape bpmnElement="pool1" id="BPMNShape_pool1" isHorizontal="true">
+        <omgdc:Bounds height="250.0" width="600.0" x="50.0" y="50.0"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="lane1" id="BPMNShape_lane1" isHorizontal="true">
+        <omgdc:Bounds height="125.0" width="580.0" x="70.0" y="50.0"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="lane2" id="BPMNShape_lane2" isHorizontal="true">
+        <omgdc:Bounds height="125.0" width="580.0" x="70.0" y="175.0"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>

@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:activiti="http://activiti.org/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC" xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI" typeLanguage="http://www.w3.org/2001/XMLSchema" expressionLanguage="http://www.w3.org/1999/XPath" targetNamespace="http://www.activiti.org/test">
+  <signal id="approvalSignal" name="Approval Signal"/>
+  <message id="startMessage" name="Start Message"/>
+  <error id="fatalError" name="Fatal Error" errorCode="ERR-FATAL"/>
+  <process id="eventTypesProcess" name="Event Types Process" isExecutable="true">
+    <startEvent id="timerstart1" name="Timer Start">
+      <timerEventDefinition>
+        <timeCycle>R3/PT10H</timeCycle>
+      </timerEventDefinition>
+    </startEvent>
+    <startEvent id="signalstart1" name="Signal Start">
+      <signalEventDefinition signalRef="approvalSignal"/>
+    </startEvent>
+    <startEvent id="messagestart1" name="Message Start">
+      <messageEventDefinition messageRef="startMessage"/>
+    </startEvent>
+    <userTask id="usertask1" name="Process" activiti:assignee="admin"/>
+    <intermediateCatchEvent id="timercatch1" name="Wait Timer">
+      <timerEventDefinition>
+        <timeDate>2025-12-31T23:59:00Z</timeDate>
+      </timerEventDefinition>
+    </intermediateCatchEvent>
+    <intermediateCatchEvent id="signalcatch1" name="Wait Signal">
+      <signalEventDefinition signalRef="approvalSignal"/>
+    </intermediateCatchEvent>
+    <intermediateCatchEvent id="messagecatch1" name="Wait Message">
+      <messageEventDefinition messageRef="startMessage"/>
+    </intermediateCatchEvent>
+    <intermediateThrowEvent id="signalthrow1" name="Throw Signal">
+      <signalEventDefinition signalRef="approvalSignal"/>
+    </intermediateThrowEvent>
+    <endEvent id="errorend1" name="Error End">
+      <errorEventDefinition errorRef="fatalError"/>
+    </endEvent>
+    <endEvent id="terminateend1" name="Terminate End">
+      <terminateEventDefinition/>
+    </endEvent>
+    <endEvent id="endevent1" name="Done"/>
+    <sequenceFlow id="flow1" sourceRef="timerstart1" targetRef="usertask1"/>
+    <sequenceFlow id="flow2" sourceRef="usertask1" targetRef="timercatch1"/>
+    <sequenceFlow id="flow3" sourceRef="timercatch1" targetRef="signalthrow1"/>
+    <sequenceFlow id="flow4" sourceRef="signalthrow1" targetRef="endevent1"/>
+  </process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_eventTypesProcess">
+    <bpmndi:BPMNPlane bpmnElement="eventTypesProcess" id="BPMNPlane_eventTypesProcess">
+      <bpmndi:BPMNShape bpmnElement="timerstart1" id="BPMNShape_timerstart1">
+        <omgdc:Bounds height="35.0" width="35.0" x="90.0" y="250.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="usertask1" id="BPMNShape_usertask1">
+        <omgdc:Bounds height="55.0" width="105.0" x="200.0" y="240.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="timercatch1" id="BPMNShape_timercatch1">
+        <omgdc:Bounds height="35.0" width="35.0" x="370.0" y="250.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="signalthrow1" id="BPMNShape_signalthrow1">
+        <omgdc:Bounds height="35.0" width="35.0" x="470.0" y="250.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="endevent1" id="BPMNShape_endevent1">
+        <omgdc:Bounds height="35.0" width="35.0" x="570.0" y="250.0"/>
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>
