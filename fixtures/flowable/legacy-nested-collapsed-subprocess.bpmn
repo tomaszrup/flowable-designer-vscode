@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC" xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:activiti="http://activiti.org/bpmn" targetNamespace="http://www.activiti.org/test">
+  <process id="nestedCollapsedSubprocessProcess" name="Nested Collapsed Subprocess Process" isExecutable="true">
+    <startEvent id="startevent1" name="Start"/>
+    <sequenceFlow id="flow1" sourceRef="startevent1" targetRef="subprocess1"/>
+    <subProcess id="subprocess1" name="Outer Subprocess">
+      <startEvent id="substartevent1" name="Outer Sub Start"/>
+      <sequenceFlow id="subflow1" sourceRef="substartevent1" targetRef="subprocess2"/>
+      <subProcess id="subprocess2" name="Inner Subprocess">
+        <startEvent id="substartevent2" name="Inner Sub Start"/>
+        <sequenceFlow id="innerflow1" sourceRef="substartevent2" targetRef="usertask1"/>
+        <userTask id="usertask1" name="Review Request" activiti:assignee="${initiator}">
+          <documentation>Review and approve the request.</documentation>
+        </userTask>
+        <sequenceFlow id="innerflow2" sourceRef="usertask1" targetRef="servicetask1"/>
+        <serviceTask id="servicetask1" name="Process Review" activiti:class="com.example.flowable.ReviewDelegate"/>
+        <sequenceFlow id="innerflow3" sourceRef="servicetask1" targetRef="subendevent2"/>
+        <endEvent id="subendevent2" name="Inner Sub End"/>
+      </subProcess>
+      <sequenceFlow id="subflow2" sourceRef="subprocess2" targetRef="subendevent1"/>
+      <endEvent id="subendevent1" name="Outer Sub End"/>
+    </subProcess>
+    <sequenceFlow id="flow2" sourceRef="subprocess1" targetRef="endevent1"/>
+    <endEvent id="endevent1" name="End"/>
+  </process>
+  <!-- Main process diagram: subprocess1 shown collapsed -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_nestedCollapsedSubprocessProcess">
+    <bpmndi:BPMNPlane id="BPMNPlane_nestedCollapsedSubprocessProcess" bpmnElement="nestedCollapsedSubprocessProcess">
+      <bpmndi:BPMNShape id="BPMNShape_startevent1" bpmnElement="startevent1">
+        <omgdc:Bounds x="90" y="250" width="35" height="35"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_subprocess1" bpmnElement="subprocess1" isExpanded="false">
+        <omgdc:Bounds x="250" y="240" width="135" height="55"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_endevent1" bpmnElement="endevent1">
+        <omgdc:Bounds x="490" y="250" width="35" height="35"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow1" bpmnElement="flow1">
+        <omgdi:waypoint x="125" y="267"/>
+        <omgdi:waypoint x="250" y="267"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow2" bpmnElement="flow2">
+        <omgdi:waypoint x="385" y="267"/>
+        <omgdi:waypoint x="490" y="267"/>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  <!-- Level 1: contents of subprocess1, with subprocess2 shown collapsed -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_subprocess1">
+    <bpmndi:BPMNPlane id="BPMNPlane_subprocess1" bpmnElement="subprocess1">
+      <bpmndi:BPMNShape id="BPMNShape_substartevent1" bpmnElement="substartevent1">
+        <omgdc:Bounds x="90" y="250" width="35" height="35"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_subprocess2" bpmnElement="subprocess2" isExpanded="false">
+        <omgdc:Bounds x="250" y="240" width="135" height="55"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_subendevent1" bpmnElement="subendevent1">
+        <omgdc:Bounds x="490" y="250" width="35" height="35"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="BPMNEdge_subflow1" bpmnElement="subflow1">
+        <omgdi:waypoint x="125" y="267"/>
+        <omgdi:waypoint x="250" y="267"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_subflow2" bpmnElement="subflow2">
+        <omgdi:waypoint x="385" y="267"/>
+        <omgdi:waypoint x="490" y="267"/>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  <!-- Level 2: contents of subprocess2 (innermost) -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_subprocess2">
+    <bpmndi:BPMNPlane id="BPMNPlane_subprocess2" bpmnElement="subprocess2">
+      <bpmndi:BPMNShape id="BPMNShape_substartevent2" bpmnElement="substartevent2">
+        <omgdc:Bounds x="90" y="250" width="35" height="35"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_usertask1" bpmnElement="usertask1">
+        <omgdc:Bounds x="200" y="240" width="135" height="55"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_servicetask1" bpmnElement="servicetask1">
+        <omgdc:Bounds x="410" y="240" width="135" height="55"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_subendevent2" bpmnElement="subendevent2">
+        <omgdc:Bounds x="620" y="250" width="35" height="35"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="BPMNEdge_innerflow1" bpmnElement="innerflow1">
+        <omgdi:waypoint x="125" y="267"/>
+        <omgdi:waypoint x="200" y="267"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_innerflow2" bpmnElement="innerflow2">
+        <omgdi:waypoint x="335" y="267"/>
+        <omgdi:waypoint x="410" y="267"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_innerflow3" bpmnElement="innerflow3">
+        <omgdi:waypoint x="545" y="267"/>
+        <omgdi:waypoint x="620" y="267"/>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>
