@@ -189,11 +189,13 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
 			min-width: 0;
 			min-height: 0;
 			overflow: hidden;
+			outline: none;
 		}
 
 		#canvas {
 			height: 100%;
 			min-height: 420px;
+			outline: none;
 		}
 
 		.sidebar {
