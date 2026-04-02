@@ -2352,6 +2352,10 @@ window.addEventListener('message', (event: MessageEvent<HostToWebviewMessage>) =
 			}
 			break;
 		}
+		case 'source-visible': {
+			btnViewSource.classList.toggle('active', event.data.visible);
+			break;
+		}
 	}
 });
 

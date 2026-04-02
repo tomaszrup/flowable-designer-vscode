@@ -186,6 +186,17 @@ export class BpmnEditorProvider implements vscode.CustomTextEditorProvider {
 			}
 		});
 
+		// Track whether the source text editor is visible alongside the designer
+		const notifySourceVisibility = () => {
+			const visible = vscode.window.visibleTextEditors.some(
+				e => e.document.uri.toString() === document.uri.toString()
+			);
+			void webviewPanel.webview.postMessage({ type: 'source-visible', visible });
+		};
+		const visibleEditorsSubscription = vscode.window.onDidChangeVisibleTextEditors(() => {
+			notifySourceVisibility();
+		});
+
 		const saveSubscription = vscode.workspace.onDidSaveTextDocument((savedDoc) => {
 			if (savedDoc.uri.toString() === document.uri.toString()) {
 				onDiskHash = simpleHash(savedDoc.getText());
@@ -207,6 +218,7 @@ export class BpmnEditorProvider implements vscode.CustomTextEditorProvider {
 		webviewPanel.onDidDispose(() => {
 			changeDocumentSubscription.dispose();
 			saveSubscription.dispose();
+			visibleEditorsSubscription.dispose();
 			fileWatcher.dispose();
 			fileChangeSubscription.dispose();
 			if (BpmnEditorProvider.activeWebview === webviewPanel.webview) {
@@ -269,12 +281,18 @@ export class BpmnEditorProvider implements vscode.CustomTextEditorProvider {
 					break;
 				}
 				case 'open-source': {
-					void vscode.window.showTextDocument(document.uri, {
-						viewColumn: vscode.ViewColumn.Beside,
-						preview: false,
-					}).then(editor => {
-						void vscode.languages.setTextDocumentLanguage(editor.document, 'xml');
-					});
+					// Check if the source document is already visible in another editor
+					const alreadyOpen = vscode.window.visibleTextEditors.some(
+						e => e.document.uri.toString() === document.uri.toString()
+					);
+					if (!alreadyOpen) {
+						void vscode.window.showTextDocument(document.uri, {
+							viewColumn: vscode.ViewColumn.Beside,
+							preview: false,
+						}).then(editor => {
+							void vscode.languages.setTextDocumentLanguage(editor.document, 'xml');
+						});
+					}
 					break;
 				}
 				case 'pick-file': {

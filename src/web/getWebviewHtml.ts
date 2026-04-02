@@ -492,6 +492,11 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
 			background: transparent;
 		}
 
+		.toolbar button.active {
+			background: color-mix(in srgb, var(--text) 15%, transparent);
+			border-color: color-mix(in srgb, var(--text) 30%, transparent);
+		}
+
 		/* Toast notifications */
 		.toast-container {
 			position: fixed;

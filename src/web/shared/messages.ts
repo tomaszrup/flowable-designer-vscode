@@ -10,7 +10,8 @@ export type HostToWebviewMessage =
 	| { type: 'load-document'; xml: string; flowableState: FlowableDocumentState; minimapEnabled: boolean }
 	| { type: 'request-svg' }
 	| { type: 'request-validation' }
-	| { type: 'file-picked'; path: string };
+	| { type: 'file-picked'; path: string }
+	| { type: 'source-visible'; visible: boolean };
 
 export type WebviewToHostMessage =
 	| { type: 'ready' }
