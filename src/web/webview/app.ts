@@ -2172,7 +2172,10 @@ function renderProperties(): void {
 	properties.appendChild(executionListenersGroup);
 
 	if (scrollContainer) {
-		scrollContainer.scrollTop = scrollTop;
+		const restoreTarget = scrollTop;
+		requestAnimationFrame(() => {
+			scrollContainer.scrollTop = restoreTarget;
+		});
 	}
 
 	// Reapply search filter if active

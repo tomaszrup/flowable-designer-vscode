@@ -9,7 +9,7 @@
       <subProcess id="subprocess2" name="Inner Subprocess">
         <startEvent id="substartevent2" name="Inner Sub Start"/>
         <sequenceFlow id="innerflow1" sourceRef="substartevent2" targetRef="usertask1"/>
-        <userTask id="usertask1" name="Review Request" activiti:assignee="${initiator}">
+        <userTask id="usertask1" name="Review Request" activiti:assignee="${initiator}" activiti:async="true" activiti:exclusive="true">
           <documentation>Review and approve the request.</documentation>
         </userTask>
         <sequenceFlow id="innerflow2" sourceRef="usertask1" targetRef="servicetask1"/>

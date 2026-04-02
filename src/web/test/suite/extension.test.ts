@@ -30,6 +30,7 @@ import legacyAsyncRetryFixture from '../../../../fixtures/flowable/legacy-async-
 import legacyDataSignalExceptionsFixture from '../../../../fixtures/flowable/legacy-data-signal-exceptions.bpmn?raw';
 import legacySubprocessFixture from '../../../../fixtures/flowable/legacy-subprocess.bpmn?raw';
 import legacyCollapsedSubprocessFixture from '../../../../fixtures/flowable/legacy-collapsed-subprocess.bpmn?raw';
+import legacyNestedCollapsedSubprocessFixture from '../../../../fixtures/flowable/legacy-nested-collapsed-subprocess.bpmn?raw';
 import { extractFlowableDocumentState, mergeFlowableDocumentXml } from '../../flowable/roundTrip';
 import { validateBpmnXml } from '../../flowable/validation';
 import { parseXmlDocument } from '../../flowable/xmlParser';
@@ -1175,6 +1176,33 @@ describe('Web Extension Test Suite', () => {
 		const restoredState = extractFlowableDocumentState(mergedXml);
 
 		expect(restoredState.elements.servicetask2.failedJobRetryTimeCycle).toBe('R5/PT5M');
+	});
+
+	test('removing async attribute from incoming state removes it from merged XML', () => {
+		const originalState = extractFlowableDocumentState(legacyNestedCollapsedSubprocessFixture);
+
+		// Verify the fixture has async="true" on the user task
+		const userTask = originalState.elements.usertask1;
+		assertDefined(userTask);
+		expect(userTask.activitiAttributes.async).toBe('true');
+
+		// Simulate toggling async off: delete the key (matches updateFlowableAttribute behaviour)
+		const incomingState = extractFlowableDocumentState(legacyNestedCollapsedSubprocessFixture);
+		delete incomingState.elements.usertask1.activitiAttributes.async;
+
+		const mergedXml = mergeFlowableDocumentXml(
+			legacyNestedCollapsedSubprocessFixture,
+			legacyNestedCollapsedSubprocessFixture,
+			incomingState,
+		);
+
+		// The merged XML must NOT contain activiti:async on usertask12
+		const restoredState = extractFlowableDocumentState(mergedXml);
+		expect(restoredState.elements.usertask1.activitiAttributes.async).toBeUndefined();
+		expect(mergedXml).not.toMatch(/usertask1[^>]*activiti:async/);
+
+		// Other attributes should still be preserved
+		expect(restoredState.elements.usertask1.activitiAttributes.exclusive).toBe('true');
 	});
 
 	test('extracts signal scope', () => {

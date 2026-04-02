@@ -372,10 +372,9 @@ function mergeElementState(
 	return {
 		id: incomingState?.id || originalState?.id || base.id,
 		type: incomingState?.type || originalState?.type || base.type,
-		activitiAttributes: {
-			...(originalState?.activitiAttributes || {}),
-			...(incomingState?.activitiAttributes || {}),
-		},
+		activitiAttributes: incomingState
+			? { ...incomingState.activitiAttributes }
+			: { ...originalState?.activitiAttributes },
 		fieldExtensions: incomingState?.fieldExtensions
 			? incomingState.fieldExtensions.map((field) => ({ ...field }))
 			: originalState?.fieldExtensions.map((field) => ({ ...field })) || [],
