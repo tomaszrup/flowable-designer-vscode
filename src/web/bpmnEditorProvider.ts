@@ -5,6 +5,7 @@ import { validateBpmnXml } from './flowable/validation';
 import { getWebviewHtml } from './getWebviewHtml';
 import type { BpmnValidationIssue, WebviewToHostMessage } from './shared/messages';
 import type { ProcessNavigatorProvider } from './processNavigatorProvider';
+import { simpleHash } from './shared/hash';
 
 interface ImageOverlayConfig {
 	enabled: boolean;
@@ -148,6 +149,7 @@ export class BpmnEditorProvider implements vscode.CustomTextEditorProvider {
 		BpmnEditorProvider.activeDocument = document;
 
 		let lastWrittenXml = '';
+		let onDiskHash = simpleHash(this.getDocumentXml(document));
 
 		const updateWebview = async () => {
 			const currentXml = this.getDocumentXml(document);
@@ -184,8 +186,28 @@ export class BpmnEditorProvider implements vscode.CustomTextEditorProvider {
 			}
 		});
 
+		const saveSubscription = vscode.workspace.onDidSaveTextDocument((savedDoc) => {
+			if (savedDoc.uri.toString() === document.uri.toString()) {
+				onDiskHash = simpleHash(savedDoc.getText());
+			}
+		});
+
+		const fileWatcher = vscode.workspace.createFileSystemWatcher(
+			new vscode.RelativePattern(vscode.Uri.joinPath(document.uri, '..'), document.uri.path.split('/').pop()!)
+		);
+		const fileChangeSubscription = fileWatcher.onDidChange((uri) => {
+			if (uri.toString() === document.uri.toString()) {
+				vscode.workspace.fs.readFile(uri).then((content) => {
+					onDiskHash = simpleHash(new TextDecoder().decode(content));
+				}).catch(() => { /* file may have been deleted or inaccessible */ });
+			}
+		});
+
 		webviewPanel.onDidDispose(() => {
 			changeDocumentSubscription.dispose();
+			saveSubscription.dispose();
+			fileWatcher.dispose();
+			fileChangeSubscription.dispose();
 			if (BpmnEditorProvider.activeWebview === webviewPanel.webview) {
 				BpmnEditorProvider.activeWebview = undefined;
 				BpmnEditorProvider.activeDocument = undefined;
@@ -203,6 +225,13 @@ export class BpmnEditorProvider implements vscode.CustomTextEditorProvider {
 					const mergedXml = mergeFlowableDocumentXml(message.xml, this.getDocumentXml(document), message.flowableState);
 					lastWrittenXml = mergedXml;
 					await this.updateTextDocument(document, mergedXml);
+
+					// If content matches what's on disk, auto-save to clear the dirty indicator.
+					// Safe: save triggers onDidChangeTextDocument → updateWebview(),
+					// but updateWebview() bails out because lastWrittenXml === currentXml.
+					if (document.isDirty && simpleHash(document.getText()) === onDiskHash) {
+						await document.save();
+					}
 
 					// Refresh navigator tree
 					BpmnEditorProvider.navigator?.refresh(mergedXml);
