@@ -589,6 +589,49 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
 			border-color: var(--vscode-errorForeground, #f44);
 		}
 
+		/* File reference links and browse button */
+		.file-references {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 6px;
+			margin-top: 4px;
+		}
+
+		.file-reference-link {
+			display: inline-flex;
+			align-items: center;
+			gap: 4px;
+			padding: 2px 8px;
+			border-radius: 4px;
+			background: color-mix(in srgb, var(--vscode-textLink-foreground, #3794ff) 12%, transparent);
+			color: var(--vscode-textLink-foreground, #3794ff);
+			font-size: 11px;
+			text-decoration: none;
+			cursor: pointer;
+			border: 1px solid color-mix(in srgb, var(--vscode-textLink-foreground, #3794ff) 25%, transparent);
+		}
+
+		.file-reference-link:hover {
+			background: color-mix(in srgb, var(--vscode-textLink-foreground, #3794ff) 20%, transparent);
+			text-decoration: underline;
+		}
+
+		.file-browse-btn {
+			margin-top: 4px;
+			padding: 4px 10px;
+			border: 1px solid var(--border);
+			border-radius: 4px;
+			background: transparent;
+			color: var(--text);
+			font: inherit;
+			font-size: 11px;
+			cursor: pointer;
+		}
+
+		.file-browse-btn:hover {
+			background: color-mix(in srgb, var(--text) 10%, transparent);
+		}
+
 		.properties-actions {
 			display: flex;
 			justify-content: flex-start;

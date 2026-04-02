@@ -197,7 +197,8 @@ export class BpmnEditorProvider implements vscode.CustomTextEditorProvider {
 		);
 		const fileChangeSubscription = fileWatcher.onDidChange((uri) => {
 			if (uri.toString() === document.uri.toString()) {
-				vscode.workspace.fs.readFile(uri).then((content) => {
+				// Wrap in Promise.resolve to ensure .catch() is available (Thenable may not implement it)
+				Promise.resolve(vscode.workspace.fs.readFile(uri)).then((content) => {
 					onDiskHash = simpleHash(new TextDecoder().decode(content));
 				}).catch(() => { /* file may have been deleted or inaccessible */ });
 			}
@@ -274,6 +275,47 @@ export class BpmnEditorProvider implements vscode.CustomTextEditorProvider {
 					}).then(editor => {
 						void vscode.languages.setTextDocumentLanguage(editor.document, 'xml');
 					});
+					break;
+				}
+				case 'pick-file': {
+					const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri) ?? vscode.workspace.workspaceFolders?.[0];
+					const defaultUri = workspaceFolder?.uri ?? vscode.Uri.joinPath(document.uri, '..');
+					const result = await vscode.window.showOpenDialog({
+						canSelectMany: false,
+						openLabel: 'Select Script File',
+						defaultUri,
+					});
+					if (result && result.length > 0) {
+						const selectedUri = result[0];
+						const relativePath = vscode.workspace.asRelativePath(selectedUri, false);
+						void webviewPanel.webview.postMessage({ type: 'file-picked', path: relativePath });
+					}
+					break;
+				}
+				case 'open-file': {
+					if (typeof message.path !== 'string' || !message.path) {
+						break;
+					}
+					const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri) ?? vscode.workspace.workspaceFolders?.[0];
+					if (workspaceFolder) {
+						const fileUri = vscode.Uri.joinPath(workspaceFolder.uri, message.path);
+						// Guard against path traversal outside the workspace
+						if (!fileUri.path.startsWith(workspaceFolder.uri.path + '/')) {
+							void vscode.window.showWarningMessage('File path must be within the workspace.');
+							break;
+						}
+						try {
+							await vscode.workspace.fs.stat(fileUri);
+							void vscode.window.showTextDocument(fileUri, {
+								viewColumn: vscode.ViewColumn.Beside,
+								preview: true,
+							});
+						} catch {
+							void vscode.window.showWarningMessage(`File not found: ${message.path}`);
+						}
+					} else {
+						void vscode.window.showWarningMessage('No workspace folder found to resolve file path.');
+					}
 					break;
 				}
 			}

@@ -9,7 +9,8 @@ export interface BpmnValidationIssue {
 export type HostToWebviewMessage =
 	| { type: 'load-document'; xml: string; flowableState: FlowableDocumentState; minimapEnabled: boolean }
 	| { type: 'request-svg' }
-	| { type: 'request-validation' };
+	| { type: 'request-validation' }
+	| { type: 'file-picked'; path: string };
 
 export type WebviewToHostMessage =
 	| { type: 'ready' }
@@ -17,4 +18,6 @@ export type WebviewToHostMessage =
 	| { type: 'show-error'; message: string }
 	| { type: 'open-source' }
 	| { type: 'svg-export'; svg: string }
-	| { type: 'validation-result'; issues: BpmnValidationIssue[] };
+	| { type: 'validation-result'; issues: BpmnValidationIssue[] }
+	| { type: 'pick-file' }
+	| { type: 'open-file'; path: string };

@@ -20,6 +20,7 @@ import {
 	type TimerDefinitionType,
 } from '../flowable/types';
 import type { HostToWebviewMessage, WebviewToHostMessage } from '../shared/messages';
+import { parseFileReferences } from '../shared/fileReferences';
 import { validateId, validateRequired, validateRetryCycle, validateTimerValue } from './validators';
 import {
 	type BpmnElement,
@@ -423,6 +424,25 @@ function createTextArea(value: string, onCommit: (nextValue: string) => void, pl
 	return textarea;
 }
 
+/** Render a container with clickable file reference links. */
+function renderFileReferences(refs: string[]): HTMLDivElement {
+	const container = document.createElement('div');
+	container.className = 'file-references';
+	for (const ref of refs) {
+		const link = document.createElement('a');
+		link.className = 'file-reference-link';
+		link.href = '#';
+		link.textContent = ref;
+		link.title = `Open ${ref}`;
+		link.addEventListener('click', (e) => {
+			e.preventDefault();
+			postMessage({ type: 'open-file', path: ref });
+		});
+		container.appendChild(link);
+	}
+	return container;
+}
+
 function createSelect(options: string[], selected: string, onCommit: (nextValue: string) => void): HTMLSelectElement {
 	const select = document.createElement('select');
 	for (const opt of options) {
@@ -564,6 +584,7 @@ let selectedElement: BpmnElement | null = null;
 let currentRootId: string | null = null;
 let flowableState: FlowableDocumentState = createEmptyFlowableState();
 let metadataSaveTimer: number | undefined;
+let pendingFilePickTextArea: { textarea: HTMLTextAreaElement; elementId: string } | null = null;
 let fieldIdCounter = 0;
 
 function nextFieldId(prefix: string): string {
@@ -1966,9 +1987,39 @@ function renderProperties(): void {
 				queueMetadataSave();
 			},
 		)));
-		scriptGroup.appendChild(createField('Script', createTextArea(elementState.script, (nextValue) => {
+
+		const scriptTextArea = createTextArea(elementState.script, (nextValue) => {
 			updateScript(nextValue);
-		}, 'Enter script code...')));
+			// Re-render file references when script changes
+			const refs = parseFileReferences(nextValue);
+			fileRefsContainer.innerHTML = '';
+			if (refs.length > 0) {
+				fileRefsContainer.appendChild(renderFileReferences(refs));
+			}
+		}, 'Enter script code...');
+		scriptGroup.appendChild(createField('Script', scriptTextArea));
+
+		// Browse button for inserting file references
+		const browseBtn = document.createElement('button');
+		browseBtn.type = 'button';
+		browseBtn.className = 'file-browse-btn';
+		browseBtn.textContent = 'Insert File Reference\u2026';
+		browseBtn.title = 'Select a file to insert as @path@ reference';
+		browseBtn.addEventListener('click', () => {
+			postMessage({ type: 'pick-file' });
+			// Store reference to textarea and element ID so file-picked handler can validate
+			pendingFilePickTextArea = { textarea: scriptTextArea, elementId: getElementId(currentElement) };
+		});
+		scriptGroup.appendChild(browseBtn);
+
+		// File references list
+		const fileRefsContainer = document.createElement('div');
+		const initialRefs = parseFileReferences(elementState.script);
+		if (initialRefs.length > 0) {
+			fileRefsContainer.appendChild(renderFileReferences(initialRefs));
+		}
+		scriptGroup.appendChild(fileRefsContainer);
+
 		properties.appendChild(scriptGroup);
 	}
 
@@ -2283,6 +2334,22 @@ window.addEventListener('message', (event: MessageEvent<HostToWebviewMessage>) =
 		}
 		case 'request-validation': {
 			// Validation is handled on the extension host side via XML
+			break;
+		}
+		case 'file-picked': {
+			if (pendingFilePickTextArea && selectedElement && getElementId(selectedElement) === pendingFilePickTextArea.elementId) {
+				const textarea = pendingFilePickTextArea.textarea;
+				const insertion = `@${event.data.path}@`;
+				const start = textarea.selectionStart;
+				const end = textarea.selectionEnd;
+				const before = textarea.value.substring(0, start);
+				const after = textarea.value.substring(end);
+				textarea.value = before + insertion + after;
+				textarea.selectionStart = textarea.selectionEnd = start + insertion.length;
+				textarea.dispatchEvent(new Event('change'));
+				textarea.dispatchEvent(new Event('input'));
+				pendingFilePickTextArea = null;
+			}
 			break;
 		}
 	}
