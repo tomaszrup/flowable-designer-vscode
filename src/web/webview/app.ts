@@ -4,6 +4,7 @@ import {
 	cloneFlowableState,
 	createEmptyFlowableState,
 	type FlowableAttributeKey,
+	type FlowableDataObject,
 	type FlowableDocumentState,
 	type FlowableElementState,
 	type FlowableEventListener,
@@ -504,6 +505,112 @@ function makeDraggableItem<T>(item: HTMLDivElement, index: number, array: T[], c
 		if (isNaN(fromIndex) || fromIndex === toIndex || fromIndex < 0 || fromIndex >= array.length) { return; }
 		const [moved] = array.splice(fromIndex, 1);
 		array.splice(fromIndex < toIndex ? toIndex - 1 : toIndex, 0, moved);
+		onReorder();
+	});
+}
+
+function getKnownProcessIds(): string[] {
+	return Object.values(flowableState.elements)
+		.filter((elementState) => elementState.type === 'process')
+		.map((elementState) => elementState.id);
+}
+
+function isProcessScopedItemMatch(processId: string | undefined, selectedProcessId: string): boolean {
+	return processId === selectedProcessId || (!processId && getKnownProcessIds().length <= 1);
+}
+
+function getProcessScopedItems<T extends { processId?: string }>(items: T[], processId: string): T[] {
+	return items.filter((item) => isProcessScopedItemMatch(item.processId, processId));
+}
+
+function getProcessScopedGlobalIndex<T extends { processId?: string }>(items: T[], processId: string, scopedIndex: number): number {
+	let currentScopedIndex = 0;
+	for (let index = 0; index < items.length; index += 1) {
+		if (!isProcessScopedItemMatch(items[index].processId, processId)) {
+			continue;
+		}
+		if (currentScopedIndex === scopedIndex) {
+			return index;
+		}
+		currentScopedIndex += 1;
+	}
+	return -1;
+}
+
+function reorderProcessScopedItems<T extends { processId?: string }>(items: T[], processId: string, fromIndex: number, toIndex: number): void {
+	const scopedIndexes: number[] = [];
+	const scopedItems: T[] = [];
+	for (let index = 0; index < items.length; index += 1) {
+		if (!isProcessScopedItemMatch(items[index].processId, processId)) {
+			continue;
+		}
+		scopedIndexes.push(index);
+		scopedItems.push(items[index]);
+	}
+
+	if (fromIndex < 0 || toIndex < 0 || fromIndex >= scopedItems.length || toIndex >= scopedItems.length || fromIndex === toIndex) {
+		return;
+	}
+
+	const reorderedItems = [...scopedItems];
+	const [movedItem] = reorderedItems.splice(fromIndex, 1);
+	reorderedItems.splice(fromIndex < toIndex ? toIndex - 1 : toIndex, 0, movedItem);
+
+	scopedIndexes.forEach((globalIndex, scopedItemIndex) => {
+		items[globalIndex] = reorderedItems[scopedItemIndex];
+	});
+}
+
+function makeProcessScopedDraggableItem<T extends { processId?: string }>(
+	item: HTMLDivElement,
+	index: number,
+	array: T[],
+	processId: string,
+	collectionId: string,
+	onReorder: () => void,
+): void {
+	const handle = document.createElement('span');
+	handle.className = 'drag-handle';
+	handle.textContent = '\u2630';
+	handle.title = 'Drag to reorder';
+	handle.setAttribute('aria-label', 'Drag to reorder');
+	item.draggable = true;
+	item.insertBefore(handle, item.firstChild);
+
+	const mimeType = `application/x-collection-${collectionId}`;
+
+	item.addEventListener('dragstart', (e: DragEvent) => {
+		if (e.dataTransfer) {
+			e.dataTransfer.effectAllowed = 'move';
+			e.dataTransfer.setData(mimeType, String(index));
+		}
+		item.classList.add('dragging');
+	});
+
+	item.addEventListener('dragend', () => {
+		item.classList.remove('dragging');
+	});
+
+	item.addEventListener('dragover', (e: DragEvent) => {
+		if (!e.dataTransfer?.types.includes(mimeType)) { return; }
+		e.preventDefault();
+		if (e.dataTransfer) {
+			e.dataTransfer.dropEffect = 'move';
+		}
+		item.classList.add('drag-over');
+	});
+
+	item.addEventListener('dragleave', () => {
+		item.classList.remove('drag-over');
+	});
+
+	item.addEventListener('drop', (e: DragEvent) => {
+		if (!e.dataTransfer?.types.includes(mimeType)) { return; }
+		e.preventDefault();
+		item.classList.remove('drag-over');
+		const fromIndex = Number(e.dataTransfer?.getData(mimeType));
+		const toIndex = index;
+		reorderProcessScopedItems(array, processId, fromIndex, toIndex);
 		onReorder();
 	});
 }
@@ -1049,10 +1156,11 @@ function removeMessageDefinition(index: number): void {
 }
 
 let eventListenerCounter = 0;
-function addEventListener(): void {
+function addEventListener(processId: string): void {
 	eventListenerCounter += 1;
 	flowableState.eventListeners.push({
 		id: `event-listener-${eventListenerCounter}`,
+		processId,
 		events: '',
 		implementationType: 'class',
 		implementation: '',
@@ -1061,15 +1169,18 @@ function addEventListener(): void {
 	queueMetadataSave();
 	renderProperties();
 }
-function updateEventListener(index: number, patch: Partial<FlowableEventListener>): void {
-	const listener = flowableState.eventListeners[index];
+function updateEventListener(processId: string, index: number, patch: Partial<FlowableEventListener>): void {
+	const globalIndex = getProcessScopedGlobalIndex(flowableState.eventListeners, processId, index);
+	const listener = globalIndex === -1 ? undefined : flowableState.eventListeners[globalIndex];
 	if (!listener) { return; }
 	Object.assign(listener, patch);
 	queueMetadataSave();
 	renderProperties();
 }
-function removeEventListener(index: number): void {
-	flowableState.eventListeners.splice(index, 1);
+function removeEventListener(processId: string, index: number): void {
+	const globalIndex = getProcessScopedGlobalIndex(flowableState.eventListeners, processId, index);
+	if (globalIndex === -1) { return; }
+	flowableState.eventListeners.splice(globalIndex, 1);
 	queueMetadataSave();
 	renderProperties();
 }
@@ -1081,21 +1192,49 @@ function updateTargetNamespace(value: string): void {
 }
 
 let localizationCounter = 0;
-function addLocalization(): void {
+function addLocalization(processId: string): void {
 	localizationCounter += 1;
-	flowableState.localizations.push({ id: `localization-${localizationCounter}`, locale: '', name: '', description: '' });
+	flowableState.localizations.push({ id: `localization-${localizationCounter}`, processId, locale: '', name: '', description: '' });
 	queueMetadataSave();
 	renderProperties();
 }
-function updateLocalization(index: number, patch: Partial<FlowableLocalization>): void {
-	const loc = flowableState.localizations[index];
+function updateLocalization(processId: string, index: number, patch: Partial<FlowableLocalization>): void {
+	const globalIndex = getProcessScopedGlobalIndex(flowableState.localizations, processId, index);
+	const loc = globalIndex === -1 ? undefined : flowableState.localizations[globalIndex];
 	if (!loc) { return; }
 	Object.assign(loc, patch);
 	queueMetadataSave();
 	renderProperties();
 }
-function removeLocalization(index: number): void {
-	flowableState.localizations.splice(index, 1);
+function removeLocalization(processId: string, index: number): void {
+	const globalIndex = getProcessScopedGlobalIndex(flowableState.localizations, processId, index);
+	if (globalIndex === -1) { return; }
+	flowableState.localizations.splice(globalIndex, 1);
+	queueMetadataSave();
+	renderProperties();
+}
+
+function updateDataObject(processId: string, index: number, patch: Partial<FlowableDataObject>): void {
+	const globalIndex = getProcessScopedGlobalIndex(flowableState.dataObjects, processId, index);
+	if (globalIndex === -1) { return; }
+	flowableState.dataObjects[globalIndex] = {
+		...flowableState.dataObjects[globalIndex],
+		...patch,
+	};
+	queueMetadataSave();
+	renderProperties();
+}
+
+function removeDataObject(processId: string, index: number): void {
+	const globalIndex = getProcessScopedGlobalIndex(flowableState.dataObjects, processId, index);
+	if (globalIndex === -1) { return; }
+	flowableState.dataObjects.splice(globalIndex, 1);
+	queueMetadataSave();
+	renderProperties();
+}
+
+function addDataObject(processId: string): void {
+	flowableState.dataObjects.push({ id: `dataObj-${Date.now()}`, processId, name: '', itemSubjectRef: 'xsd:string', defaultValue: '' });
 	queueMetadataSave();
 	renderProperties();
 }
@@ -1396,6 +1535,7 @@ function renderProperties(): void {
 	properties.appendChild(docGroup);
 
 	if (isProcess(selectedElement)) {
+		const processId = getElementId(selectedElement);
 		// Target Namespace
 		const nsGroup = createGroup('Process Namespace');
 		nsGroup.appendChild(createField('Target Namespace', createTextInput(flowableState.targetNamespace, (nextValue) => {
@@ -1465,23 +1605,23 @@ function renderProperties(): void {
 		// Event Listeners
 		const eventListenersGroup = createGroup('Event Listeners');
 		const implTypes: FlowableEventListenerImplType[] = ['class', 'delegateExpression', 'throwSignalEvent', 'throwGlobalSignalEvent', 'throwMessageEvent', 'throwErrorEvent'];
-		flowableState.eventListeners.forEach((listener, index) => {
+		getProcessScopedItems(flowableState.eventListeners, processId).forEach((listener, index) => {
 			const item = document.createElement('div');
 			item.className = 'field-array-item';
-			makeDraggableItem(item, index, flowableState.eventListeners, 'event-listeners', () => { queueMetadataSave(); renderProperties(); });
-			item.appendChild(createField('Events', createTextInput(listener.events, (v) => updateEventListener(index, { events: v }))));
+			makeProcessScopedDraggableItem(item, index, flowableState.eventListeners, processId, 'event-listeners', () => { queueMetadataSave(); renderProperties(); });
+			item.appendChild(createField('Events', createTextInput(listener.events, (v) => updateEventListener(processId, index, { events: v }))));
 			item.appendChild(createField('Implementation Type', createSelect(
 				implTypes,
 				listener.implementationType,
-				(v) => updateEventListener(index, { implementationType: v as FlowableEventListenerImplType }),
+				(v) => updateEventListener(processId, index, { implementationType: v as FlowableEventListenerImplType }),
 			)));
-			item.appendChild(createField('Implementation', createTextInput(listener.implementation, (v) => updateEventListener(index, { implementation: v }))));
-			item.appendChild(createField('Entity Type', createTextInput(listener.entityType, (v) => updateEventListener(index, { entityType: v }))));
+			item.appendChild(createField('Implementation', createTextInput(listener.implementation, (v) => updateEventListener(processId, index, { implementation: v }))));
+			item.appendChild(createField('Entity Type', createTextInput(listener.entityType, (v) => updateEventListener(processId, index, { entityType: v }))));
 			const removeBtn = document.createElement('button');
 			removeBtn.type = 'button';
 			removeBtn.className = 'btn-remove';
 			removeBtn.textContent = 'Remove Event Listener';
-			removeBtn.addEventListener('click', () => removeEventListener(index));
+			removeBtn.addEventListener('click', () => removeEventListener(processId, index));
 			item.appendChild(removeBtn);
 			eventListenersGroup.appendChild(item);
 		});
@@ -1490,25 +1630,25 @@ function renderProperties(): void {
 		const addElBtn = document.createElement('button');
 		addElBtn.type = 'button';
 		addElBtn.textContent = 'Add Event Listener';
-		addElBtn.addEventListener('click', addEventListener);
+		addElBtn.addEventListener('click', () => addEventListener(processId));
 		elActions.appendChild(addElBtn);
 		eventListenersGroup.appendChild(elActions);
 		properties.appendChild(eventListenersGroup);
 
 		// Localizations (multi-language support)
 		const locGroup = createGroup('Localizations');
-		flowableState.localizations.forEach((loc, index) => {
+		getProcessScopedItems(flowableState.localizations, processId).forEach((loc, index) => {
 			const item = document.createElement('div');
 			item.className = 'field-array-item';
-			makeDraggableItem(item, index, flowableState.localizations, 'localizations', () => { queueMetadataSave(); renderProperties(); });
-			item.appendChild(createField('Locale', createTextInput(loc.locale, (v) => updateLocalization(index, { locale: v }))));
-			item.appendChild(createField('Name', createTextInput(loc.name, (v) => updateLocalization(index, { name: v }))));
-			item.appendChild(createField('Description', createTextArea(loc.description, (v) => updateLocalization(index, { description: v }))));
+			makeProcessScopedDraggableItem(item, index, flowableState.localizations, processId, 'localizations', () => { queueMetadataSave(); renderProperties(); });
+			item.appendChild(createField('Locale', createTextInput(loc.locale, (v) => updateLocalization(processId, index, { locale: v }))));
+			item.appendChild(createField('Name', createTextInput(loc.name, (v) => updateLocalization(processId, index, { name: v }))));
+			item.appendChild(createField('Description', createTextArea(loc.description, (v) => updateLocalization(processId, index, { description: v }))));
 			const removeBtn = document.createElement('button');
 			removeBtn.type = 'button';
 			removeBtn.className = 'btn-remove';
 			removeBtn.textContent = 'Remove Localization';
-			removeBtn.addEventListener('click', () => removeLocalization(index));
+			removeBtn.addEventListener('click', () => removeLocalization(processId, index));
 			item.appendChild(removeBtn);
 			locGroup.appendChild(item);
 		});
@@ -1517,64 +1657,37 @@ function renderProperties(): void {
 		const addLocBtn = document.createElement('button');
 		addLocBtn.type = 'button';
 		addLocBtn.textContent = 'Add Localization';
-		addLocBtn.addEventListener('click', addLocalization);
+		addLocBtn.addEventListener('click', () => addLocalization(processId));
 		locActions.appendChild(addLocBtn);
 		locGroup.appendChild(locActions);
 		properties.appendChild(locGroup);
 
-		// Data Objects (read-only display + preservation)
-		if (flowableState.dataObjects.length > 0) {
-			const dataGroup = createGroup('Data Objects');
-			flowableState.dataObjects.forEach((dataObj, index) => {
-				const item = document.createElement('div');
-				item.className = 'field-array-item';
-				makeDraggableItem(item, index, flowableState.dataObjects, 'data-objects', () => { queueMetadataSave(); renderProperties(); });
-				item.appendChild(createField('ID', createTextInput(dataObj.id, (v) => {
-					flowableState.dataObjects[index].id = v;
-					queueMetadataSave();
-					renderProperties();
-				})));
-				item.appendChild(createField('Name', createTextInput(dataObj.name, (v) => {
-					flowableState.dataObjects[index].name = v;
-					queueMetadataSave();
-					renderProperties();
-				})));
-				item.appendChild(createField('Type', createTextInput(dataObj.itemSubjectRef, (v) => {
-					flowableState.dataObjects[index].itemSubjectRef = v;
-					queueMetadataSave();
-					renderProperties();
-				})));
-				item.appendChild(createField('Default Value', createTextInput(dataObj.defaultValue, (v) => {
-					flowableState.dataObjects[index].defaultValue = v;
-					queueMetadataSave();
-					renderProperties();
-				})));
-				const removeBtn = document.createElement('button');
-				removeBtn.type = 'button';
-				removeBtn.className = 'btn-remove';
-				removeBtn.textContent = 'Remove Data Object';
-				removeBtn.addEventListener('click', () => {
-					flowableState.dataObjects.splice(index, 1);
-					queueMetadataSave();
-					renderProperties();
-				});
-				item.appendChild(removeBtn);
-				dataGroup.appendChild(item);
-			});
-			const dataActions = document.createElement('div');
-			dataActions.className = 'properties-actions';
-			const addDataBtn = document.createElement('button');
-			addDataBtn.type = 'button';
-			addDataBtn.textContent = 'Add Data Object';
-			addDataBtn.addEventListener('click', () => {
-				flowableState.dataObjects.push({ id: `dataObj-${Date.now()}`, name: '', itemSubjectRef: 'xsd:string', defaultValue: '' });
-				queueMetadataSave();
-				renderProperties();
-			});
-			dataActions.appendChild(addDataBtn);
-			dataGroup.appendChild(dataActions);
-			properties.appendChild(dataGroup);
-		}
+		const dataGroup = createGroup('Data Objects');
+		getProcessScopedItems(flowableState.dataObjects, processId).forEach((dataObj, index) => {
+			const item = document.createElement('div');
+			item.className = 'field-array-item';
+			makeProcessScopedDraggableItem(item, index, flowableState.dataObjects, processId, 'data-objects', () => { queueMetadataSave(); renderProperties(); });
+			item.appendChild(createField('ID', createTextInput(dataObj.id, (v) => updateDataObject(processId, index, { id: v }))));
+			item.appendChild(createField('Name', createTextInput(dataObj.name, (v) => updateDataObject(processId, index, { name: v }))));
+			item.appendChild(createField('Type', createTextInput(dataObj.itemSubjectRef, (v) => updateDataObject(processId, index, { itemSubjectRef: v }))));
+			item.appendChild(createField('Default Value', createTextInput(dataObj.defaultValue, (v) => updateDataObject(processId, index, { defaultValue: v }))));
+			const removeBtn = document.createElement('button');
+			removeBtn.type = 'button';
+			removeBtn.className = 'btn-remove';
+			removeBtn.textContent = 'Remove Data Object';
+			removeBtn.addEventListener('click', () => removeDataObject(processId, index));
+			item.appendChild(removeBtn);
+			dataGroup.appendChild(item);
+		});
+		const dataActions = document.createElement('div');
+		dataActions.className = 'properties-actions';
+		const addDataBtn = document.createElement('button');
+		addDataBtn.type = 'button';
+		addDataBtn.textContent = 'Add Data Object';
+		addDataBtn.addEventListener('click', () => addDataObject(processId));
+		dataActions.appendChild(addDataBtn);
+		dataGroup.appendChild(dataActions);
+		properties.appendChild(dataGroup);
 	}
 
 	if (isUserTask(selectedElement)) {

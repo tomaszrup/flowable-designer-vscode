@@ -87,6 +87,7 @@ export interface FlowableMessageDefinition extends XmlIdentified {
 
 export interface FlowableEventListener extends XmlIdentified {
 	id: string;
+	processId?: string;
 	events: string;
 	implementationType: FlowableEventListenerImplType;
 	implementation: string;
@@ -95,6 +96,7 @@ export interface FlowableEventListener extends XmlIdentified {
 
 export interface FlowableLocalization extends XmlIdentified {
 	id: string;
+	processId?: string;
 	locale: string;
 	name: string;
 	description: string;
@@ -109,6 +111,7 @@ export interface FlowableExceptionMap extends XmlIdentified {
 
 export interface FlowableDataObject extends XmlIdentified {
 	id: string;
+	processId?: string;
 	name: string;
 	itemSubjectRef: string;
 	defaultValue: string;

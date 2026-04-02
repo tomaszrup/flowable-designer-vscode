@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:activiti="http://activiti.org/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC" xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI" targetNamespace="http://www.activiti.org/test/multi-process">
+  <process id="mainProcess" name="Main Process" isExecutable="true">
+    <extensionElements>
+      <activiti:eventListener events="TASK_CREATED" class="com.example.flowable.MainAuditListener" entityType="task"/>
+      <activiti:localization locale="en" name="Main Process">
+        <activiti:documentation>Main process localization</activiti:documentation>
+      </activiti:localization>
+    </extensionElements>
+    <dataObject id="mainPayload" name="mainPayload" itemSubjectRef="xsd:string">
+      <extensionElements>
+        <activiti:value>main-value</activiti:value>
+      </extensionElements>
+    </dataObject>
+    <startEvent id="mainStart" name="Start"/>
+    <userTask id="reviewTask" name="Review" activiti:assignee="kermit"/>
+    <endEvent id="mainEnd" name="End"/>
+    <sequenceFlow id="mainFlow1" sourceRef="mainStart" targetRef="reviewTask"/>
+    <sequenceFlow id="mainFlow2" sourceRef="reviewTask" targetRef="mainEnd"/>
+  </process>
+  <process id="secondaryProcess" name="Secondary Process" isExecutable="true">
+    <extensionElements>
+      <activiti:eventListener events="ENTITY_UPDATED" delegateExpression="${secondaryListener}" entityType="execution"/>
+      <activiti:localization locale="de" name="Sekundaerer Prozess">
+        <activiti:documentation>Sekundaere Prozessbeschreibung</activiti:documentation>
+      </activiti:localization>
+    </extensionElements>
+    <dataObject id="secondaryPayload" name="secondaryPayload" itemSubjectRef="xsd:string">
+      <extensionElements>
+        <activiti:value>secondary-value</activiti:value>
+      </extensionElements>
+    </dataObject>
+    <startEvent id="secondaryStart" name="Start"/>
+    <serviceTask id="notifyTask" name="Notify" activiti:class="com.example.flowable.NotifyDelegate">
+      <extensionElements>
+        <activiti:field name="channel">
+          <activiti:string>email</activiti:string>
+        </activiti:field>
+      </extensionElements>
+    </serviceTask>
+    <endEvent id="secondaryEnd" name="End"/>
+    <sequenceFlow id="secondaryFlow1" sourceRef="secondaryStart" targetRef="notifyTask"/>
+    <sequenceFlow id="secondaryFlow2" sourceRef="notifyTask" targetRef="secondaryEnd"/>
+  </process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_mainProcess">
+    <bpmndi:BPMNPlane id="BPMNPlane_mainProcess" bpmnElement="mainProcess">
+      <bpmndi:BPMNShape id="BPMNShape_mainStart" bpmnElement="mainStart">
+        <omgdc:Bounds x="90" y="120" width="35" height="35"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_reviewTask" bpmnElement="reviewTask">
+        <omgdc:Bounds x="180" y="110" width="110" height="55"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_mainEnd" bpmnElement="mainEnd">
+        <omgdc:Bounds x="350" y="120" width="35" height="35"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="BPMNEdge_mainFlow1" bpmnElement="mainFlow1">
+        <omgdi:waypoint x="125" y="137"/>
+        <omgdi:waypoint x="180" y="137"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_mainFlow2" bpmnElement="mainFlow2">
+        <omgdi:waypoint x="290" y="137"/>
+        <omgdi:waypoint x="350" y="137"/>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_secondaryProcess">
+    <bpmndi:BPMNPlane id="BPMNPlane_secondaryProcess" bpmnElement="secondaryProcess">
+      <bpmndi:BPMNShape id="BPMNShape_secondaryStart" bpmnElement="secondaryStart">
+        <omgdc:Bounds x="90" y="260" width="35" height="35"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_notifyTask" bpmnElement="notifyTask">
+        <omgdc:Bounds x="180" y="250" width="110" height="55"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_secondaryEnd" bpmnElement="secondaryEnd">
+        <omgdc:Bounds x="350" y="260" width="35" height="35"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="BPMNEdge_secondaryFlow1" bpmnElement="secondaryFlow1">
+        <omgdi:waypoint x="125" y="277"/>
+        <omgdi:waypoint x="180" y="277"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_secondaryFlow2" bpmnElement="secondaryFlow2">
+        <omgdi:waypoint x="290" y="277"/>
+        <omgdi:waypoint x="350" y="277"/>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>

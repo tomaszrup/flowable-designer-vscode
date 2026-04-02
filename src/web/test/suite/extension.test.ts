@@ -32,7 +32,9 @@ import legacyDataSignalExceptionsFixture from '../../../../fixtures/flowable/leg
 import legacySubprocessFixture from '../../../../fixtures/flowable/legacy-subprocess.bpmn?raw';
 import legacyCollapsedSubprocessFixture from '../../../../fixtures/flowable/legacy-collapsed-subprocess.bpmn?raw';
 import legacyNestedCollapsedSubprocessFixture from '../../../../fixtures/flowable/legacy-nested-collapsed-subprocess.bpmn?raw';
+import legacyMultiProcessFixture from '../../../../fixtures/flowable/legacy-multi-process.bpmn?raw';
 import lexicalPreservationFixture from '../../../../fixtures/flowable/lexical-preservation-comments.bpmn?raw';
+import lexicalManagedExtensionChildrenFixture from '../../../../fixtures/flowable/lexical-managed-extension-children.bpmn?raw';
 import { extractFlowableDocumentState, mergeFlowableDocumentXml } from '../../flowable/roundTrip';
 import { validateBpmnXml } from '../../flowable/validation';
 import { parseXmlDocument } from '../../flowable/xmlParser';
@@ -1945,6 +1947,68 @@ describe('Web Extension Test Suite', () => {
 
 		expect(mergedXml).not.toContain('id="sig1"');
 		expect(mergedXml).not.toContain('id="msg1"');
+	});
+
+	test('preserves lexical content inside managed extension children on round-trip', () => {
+		const state = extractFlowableDocumentState(lexicalManagedExtensionChildrenFixture);
+		const mergedXml = mergeFlowableDocumentXml(
+			lexicalManagedExtensionChildrenFixture,
+			lexicalManagedExtensionChildrenFixture,
+			state,
+		);
+
+		expect(mergedXml).toContain('<!-- field level comment -->');
+		expect(mergedXml).toContain('<!-- trailing field comment -->');
+		expect(mergedXml).toContain('<custom:hint code="payload-json"/>');
+		expect(mergedXml).toContain('<activiti:string>{"status":"ready"}</activiti:string>');
+		expect(mergedXml).toContain('<activiti:expression>${tenantResolver.currentTenant()}</activiti:expression>');
+	});
+
+	test('extracts and round-trips multi-process BPMN fixtures', () => {
+		const state = extractFlowableDocumentState(legacyMultiProcessFixture);
+
+		assertDefined(state.elements.mainProcess);
+		assertDefined(state.elements.secondaryProcess);
+		expect(state.elements.reviewTask.activitiAttributes.assignee).toBe('kermit');
+		expect(state.elements.notifyTask.activitiAttributes.class).toBe('com.example.flowable.NotifyDelegate');
+		expect(state.elements.notifyTask.fieldExtensions[0]?.name).toBe('channel');
+		expect(state.eventListeners.map((listener) => `${listener.processId}:${listener.events}:${listener.implementation}`)).toEqual([
+			'mainProcess:TASK_CREATED:com.example.flowable.MainAuditListener',
+			'secondaryProcess:ENTITY_UPDATED:${secondaryListener}',
+		]);
+		expect(state.localizations.map((localization) => `${localization.processId}:${localization.locale}:${localization.name}`)).toEqual([
+			'mainProcess:en:Main Process',
+			'secondaryProcess:de:Sekundaerer Prozess',
+		]);
+		expect(state.dataObjects.map((dataObject) => `${dataObject.processId}:${dataObject.id}:${dataObject.defaultValue}`)).toEqual([
+			'mainProcess:mainPayload:main-value',
+			'secondaryProcess:secondaryPayload:secondary-value',
+		]);
+
+		const mergedXml = mergeFlowableDocumentXml(legacyMultiProcessFixture, legacyMultiProcessFixture, state);
+		const mergedDoc = parseXmlDocument(mergedXml);
+		const mergedDefinitions = mergedDoc.documentElement!;
+		const restoredState = extractFlowableDocumentState(mergedXml);
+		expect(directChildElementIds(mergedDefinitions).filter((id) => id === 'mainProcess' || id === 'secondaryProcess')).toEqual([
+			'mainProcess',
+			'secondaryProcess',
+		]);
+		expect(mergedXml).toContain('<bpmndi:BPMNDiagram id="BPMNDiagram_mainProcess">');
+		expect(mergedXml).toContain('<bpmndi:BPMNDiagram id="BPMNDiagram_secondaryProcess">');
+		expect(mergedXml).toContain('activiti:assignee="kermit"');
+		expect(mergedXml).toContain('activiti:class="com.example.flowable.NotifyDelegate"');
+		expect(mergedXml).toContain('class="com.example.flowable.MainAuditListener"');
+		expect(mergedXml).toContain('delegateExpression="${secondaryListener}"');
+		expect(mergedXml).toContain('Main process localization');
+		expect(mergedXml).toContain('Sekundaere Prozessbeschreibung');
+		expect(restoredState.eventListeners.map((listener) => `${listener.processId}:${listener.events}:${listener.implementation}`)).toEqual([
+			'mainProcess:TASK_CREATED:com.example.flowable.MainAuditListener',
+			'secondaryProcess:ENTITY_UPDATED:${secondaryListener}',
+		]);
+		expect(restoredState.dataObjects.map((dataObject) => `${dataObject.processId}:${dataObject.id}:${dataObject.defaultValue}`)).toEqual([
+			'mainProcess:mainPayload:main-value',
+			'secondaryProcess:secondaryPayload:secondary-value',
+		]);
 	});
 
 	test('preserves newly added signal event definitions from serialized BPMN', () => {

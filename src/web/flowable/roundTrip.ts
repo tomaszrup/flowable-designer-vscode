@@ -685,11 +685,15 @@ export function extractFlowableDocumentState(xml: string): FlowableDocumentState
 	}
 
 	for (const processEl of Array.from(document.getElementsByTagName('process'))) {
+		const processId = processEl.getAttribute('id') || '';
 		const extEl = findDirectChild(processEl as XmlElement, 'extensionElements');
 		if (extEl) {
 			for (const child of getElementChildren(extEl)) {
 				if (child.nodeName === 'activiti:eventListener') {
-					documentState.eventListeners.push(parseEventListener(child));
+					documentState.eventListeners.push({
+						...parseEventListener(child),
+						processId,
+					});
 				} else if (child.nodeName === 'activiti:localization') {
 					const locale = child.getAttribute('locale') || '';
 					const name = child.getAttribute('name') || '';
@@ -697,6 +701,7 @@ export function extractFlowableDocumentState(xml: string): FlowableDocumentState
 					const description = docChild?.textContent || '';
 					documentState.localizations.push({
 						id: `localization-${locale}`,
+						processId,
 						locale,
 						name,
 						description,
@@ -723,6 +728,7 @@ export function extractFlowableDocumentState(xml: string): FlowableDocumentState
 				if (id) {
 					documentState.dataObjects.push({
 						id,
+						processId,
 						name,
 						itemSubjectRef,
 						defaultValue,
@@ -1288,20 +1294,37 @@ function setOptionalAttribute(element: XmlElement, name: string, value: string |
 	}
 }
 
+function isFieldValueElement(element: XmlElement): boolean {
+	const localName = getLocalName(element);
+	return localName === 'string' || localName === 'expression';
+}
+
 function patchFieldExtensionNode(node: XmlElement, field: FlowableFieldExtension, namespaces: Record<string, string>): void {
 	node.setAttribute('name', field.name);
-	while (node.firstChild) {
-		node.removeChild(node.firstChild);
+	const desiredTagName = field.valueType === 'expression' ? 'activiti:expression' : 'activiti:string';
+	const valueElements = getElementChildren(node).filter(isFieldValueElement);
+	let valueNode = valueElements[0];
+
+	for (const extraValueNode of valueElements.slice(1)) {
+		node.removeChild(extraValueNode);
 	}
-	const children = parseXmlFragment(
-		field.valueType === 'expression'
-			? `<activiti:expression>${escapeXml(field.value)}</activiti:expression>`
-			: `<activiti:string>${escapeXml(field.value)}</activiti:string>`,
-		namespaces,
-	);
-	for (const child of children) {
-		node.appendChild(getNodeDocument(node).importNode(child, true));
+
+	if (!valueNode || valueNode.nodeName !== desiredTagName) {
+		const replacement = createElementFromFragment(node, `<${desiredTagName}/>`, namespaces);
+		if (valueNode) {
+			node.replaceChild(replacement, valueNode);
+		} else {
+			const firstElementChild = getElementChildren(node)[0];
+			if (firstElementChild) {
+				node.insertBefore(replacement, firstElementChild);
+			} else {
+				node.appendChild(replacement);
+			}
+		}
+		valueNode = replacement;
 	}
+
+	setTextContentPreservingComments(valueNode, field.value);
 }
 
 function patchListenerNode(node: XmlElement, listener: FlowableListener): void {
@@ -1952,7 +1975,7 @@ export function mergeFlowableDocumentXml(
 		originalState.dataObjects,
 		serializedState.dataObjects,
 		incomingState.dataObjects,
-		(dataObject) => dataObject.id,
+		(dataObject) => `${dataObject.processId || ''}:${dataObject.id}`,
 	);
 
 	ensureActivitiNamespace(mergedState);
@@ -1998,9 +2021,14 @@ export function mergeFlowableDocumentXml(
 		insertBefore: (parent) => findDirectChild(parent, 'process') || findDirectChild(parent, 'collaboration') || null,
 	});
 
-	const processElement = findDirectChild(originalDefinitions, 'process');
-	if (processElement) {
-		reconcileManagedCollection(processElement, mergedState.dataObjects, {
+	const processElements = Array.from(originalDocument.getElementsByTagName('process'));
+	const singleProcessId = processElements.length === 1 ? (processElements[0]?.getAttribute('id') || '') : '';
+	for (const processElement of processElements) {
+		const processId = processElement.getAttribute('id') || '';
+		const processDataObjects = mergedState.dataObjects.filter((item) => {
+			return item.processId === processId || (!item.processId && singleProcessId === processId);
+		});
+		reconcileManagedCollection(processElement, processDataObjects, {
 			isManagedNode: (node) => getLocalName(node) === 'dataObject',
 			createNode: (item) => createElementFromFragment(
 				processElement,
@@ -2012,21 +2040,27 @@ export function mergeFlowableDocumentXml(
 			insertBefore: () => getElementChildren(processElement).find((child) => getLocalName(child) !== 'dataObject') || null,
 		});
 
-		const needsProcessExtensionElements = mergedState.eventListeners.length > 0 || mergedState.localizations.length > 0;
+		const processEventListeners = mergedState.eventListeners.filter((item) => {
+			return item.processId === processId || (!item.processId && singleProcessId === processId);
+		});
+		const processLocalizations = mergedState.localizations.filter((item) => {
+			return item.processId === processId || (!item.processId && singleProcessId === processId);
+		});
+		const needsProcessExtensionElements = processEventListeners.length > 0 || processLocalizations.length > 0;
 		let processExtensionElements = findDirectChild(processElement, 'extensionElements');
 		if (needsProcessExtensionElements) {
 			processExtensionElements = processExtensionElements || ensureExtensionElements(processElement);
 		}
 
 		if (processExtensionElements) {
-			reconcileManagedCollection(processExtensionElements, mergedState.eventListeners, {
+			reconcileManagedCollection(processExtensionElements, processEventListeners, {
 				isManagedNode: (node) => node.nodeName === 'activiti:eventListener',
 				createNode: (item) => createElementFromFragment(processExtensionElements!, buildEventListenerNode(item), mergedState.namespaces),
 				patchNode: patchProcessEventListenerNode,
 				matchFallback: (node, item) => node.getAttribute('events') === item.events && (node.getAttribute('class') || node.getAttribute('delegateExpression') || node.getAttribute('signalName') || node.getAttribute('messageName') || node.getAttribute('errorCode') || '') === item.implementation,
 			});
 
-			reconcileManagedCollection(processExtensionElements, mergedState.localizations, {
+			reconcileManagedCollection(processExtensionElements, processLocalizations, {
 				isManagedNode: (node) => node.nodeName === 'activiti:localization',
 				createNode: (item) => createElementFromFragment(processExtensionElements!, buildLocalizationNode(item), mergedState.namespaces),
 				patchNode: patchLocalizationNode,
