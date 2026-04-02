@@ -586,6 +586,16 @@ let flowableState: FlowableDocumentState = createEmptyFlowableState();
 let metadataSaveTimer: number | undefined;
 let pendingFilePickTextArea: { textarea: HTMLTextAreaElement; elementId: string } | null = null;
 let fieldIdCounter = 0;
+let savedSidebarScroll = 0;
+let pendingScrollRestore: number | null = null;
+const sidebarEl = properties.closest('.sidebar') as HTMLElement | null;
+if (sidebarEl) {
+	sidebarEl.addEventListener('scroll', () => {
+		if (pendingScrollRestore === null) {
+			savedSidebarScroll = sidebarEl.scrollTop;
+		}
+	}, { passive: true });
+}
 
 function nextFieldId(prefix: string): string {
 	fieldIdCounter += 1;
@@ -1341,8 +1351,13 @@ function renderAttributeGroup(groupTitle: string, attributes: FlowableAttributeK
 }
 
 function renderProperties(): void {
-	const scrollContainer = properties.closest('.sidebar');
-	const scrollTop = scrollContainer?.scrollTop ?? 0;
+	const scrollContainer = sidebarEl;
+	const scrollTop = savedSidebarScroll;
+
+	// Prevent the browser from clamping scrollTop while the DOM is empty
+	// by keeping the container at its current height during the rebuild.
+	const prevHeight = properties.offsetHeight;
+	properties.style.minHeight = `${prevHeight}px`;
 
 	fieldIdCounter = 0;
 	properties.replaceChildren();
@@ -2171,10 +2186,19 @@ function renderProperties(): void {
 	renderListeners(executionListenersGroup, elementState.executionListeners, 'execution');
 	properties.appendChild(executionListenersGroup);
 
+	properties.style.minHeight = '';
+
 	if (scrollContainer) {
-		const restoreTarget = scrollTop;
-		requestAnimationFrame(() => {
-			scrollContainer.scrollTop = restoreTarget;
+		scrollContainer.scrollTop = scrollTop;
+		// Schedule a single coalesced rAF as backup in case the
+		// synchronous restore was ignored by the layout engine.
+		if (pendingScrollRestore !== null) {
+			cancelAnimationFrame(pendingScrollRestore);
+		}
+		const target = scrollTop;
+		pendingScrollRestore = requestAnimationFrame(() => {
+			scrollContainer.scrollTop = target;
+			pendingScrollRestore = null;
 		});
 	}
 
@@ -2270,6 +2294,9 @@ async function exportSvg(): Promise<void> {
 eventBus.on('selection.changed', (event) => {
 	const selectionEvent = event as { newSelection?: BpmnElement[] };
 	selectedElement = selectionEvent.newSelection?.[0] || null;
+	if (!applyingRemoteUpdate) {
+		savedSidebarScroll = 0;
+	}
 	renderProperties();
 });
 
