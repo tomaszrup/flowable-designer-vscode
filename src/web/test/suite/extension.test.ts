@@ -28,6 +28,8 @@ import legacyShellTaskFixture from '../../../../fixtures/flowable/legacy-shell-t
 import legacyExternalWorkerFixture from '../../../../fixtures/flowable/legacy-external-worker-task.bpmn?raw';
 import legacyAsyncRetryFixture from '../../../../fixtures/flowable/legacy-async-retry.bpmn?raw';
 import legacyDataSignalExceptionsFixture from '../../../../fixtures/flowable/legacy-data-signal-exceptions.bpmn?raw';
+import legacySubprocessFixture from '../../../../fixtures/flowable/legacy-subprocess.bpmn?raw';
+import legacyCollapsedSubprocessFixture from '../../../../fixtures/flowable/legacy-collapsed-subprocess.bpmn?raw';
 import { extractFlowableDocumentState, mergeFlowableDocumentXml } from '../../flowable/roundTrip';
 import { validateBpmnXml } from '../../flowable/validation';
 import { parseXmlDocument } from '../../flowable/xmlParser';
@@ -1349,4 +1351,126 @@ describe('Web Extension Test Suite', () => {
                 const doc = parseXmlDocument('<root><child/></root>');
                 expect(doc.documentElement?.tagName).toBe('root');
         });
+
+	// Subprocess fixtures
+	test('extracts embedded subprocess and its child elements', () => {
+		const state = extractFlowableDocumentState(legacySubprocessFixture);
+
+		const subprocess = state.elements.subprocess1;
+		assertDefined(subprocess);
+		expect(subprocess.type).toBe('subProcess');
+
+		const userTask = state.elements.usertask1;
+		assertDefined(userTask);
+		expect(userTask.activitiAttributes.assignee).toBe('${initiator}');
+		expect(userTask.documentation).toBe('Review the incoming request and approve or reject.');
+
+		const serviceTask = state.elements.servicetask1;
+		assertDefined(serviceTask);
+		expect(serviceTask.activitiAttributes.class).toBe('com.example.flowable.ReviewDelegate');
+	});
+
+	test('validates expanded subprocess fixture with no errors', () => {
+		const issues = validateBpmnXml(legacySubprocessFixture);
+		const errors = issues.filter(i => i.severity === 'error');
+		expect(errors.length).toBe(0);
+	});
+
+	test('round-trips expanded subprocess without data loss', () => {
+		const state = extractFlowableDocumentState(legacySubprocessFixture);
+		const mergedXml = mergeFlowableDocumentXml(legacySubprocessFixture, legacySubprocessFixture, state);
+
+		expect(mergedXml).toMatch(/subProcess id="subprocess1"/);
+		expect(mergedXml).toMatch(/activiti:assignee="\$\{initiator\}"/);
+		expect(mergedXml).toMatch(/activiti:class="com.example.flowable.ReviewDelegate"/);
+		expect(mergedXml).toMatch(/Review the incoming request and approve or reject\./);
+	});
+
+	test('merges updated subprocess child attributes into BPMN XML', () => {
+		const state = extractFlowableDocumentState(legacySubprocessFixture);
+		state.elements.usertask1.activitiAttributes.assignee = 'admin';
+		state.elements.servicetask1.activitiAttributes.class = 'com.example.flowable.UpdatedDelegate';
+
+		const strippedXml = legacySubprocessFixture
+			.replace(' activiti:assignee="${initiator}"', '')
+			.replace(' activiti:class="com.example.flowable.ReviewDelegate"', '');
+
+		const mergedXml = mergeFlowableDocumentXml(strippedXml, legacySubprocessFixture, state);
+
+		expect(mergedXml).toMatch(/activiti:assignee="admin"/);
+		expect(mergedXml).toMatch(/activiti:class="com.example.flowable.UpdatedDelegate"/);
+	});
+
+	// Collapsed subprocess (multi-diagram plane) fixtures
+	test('extracts collapsed subprocess and its child elements', () => {
+		const state = extractFlowableDocumentState(legacyCollapsedSubprocessFixture);
+
+		const subprocess = state.elements.subprocess1;
+		assertDefined(subprocess);
+		expect(subprocess.type).toBe('subProcess');
+
+		const userTask = state.elements.usertask1;
+		assertDefined(userTask);
+		expect(userTask.activitiAttributes.assignee).toBe('${initiator}');
+		expect(userTask.documentation).toBe('Approve or reject the incoming request.');
+
+		const approvalTask = state.elements.servicetask1;
+		assertDefined(approvalTask);
+		expect(approvalTask.activitiAttributes.class).toBe('com.example.flowable.ApprovalDelegate');
+
+		const rejectionTask = state.elements.servicetask2;
+		assertDefined(rejectionTask);
+		expect(rejectionTask.activitiAttributes.class).toBe('com.example.flowable.RejectionDelegate');
+	});
+
+	test('extracts condition expressions from collapsed subprocess flows', () => {
+		const state = extractFlowableDocumentState(legacyCollapsedSubprocessFixture);
+
+		const yesFlow = state.elements.subflow3;
+		assertDefined(yesFlow);
+		expect(yesFlow.conditionExpression).toBe('${approved == true}');
+
+		const noFlow = state.elements.subflow4;
+		assertDefined(noFlow);
+		expect(noFlow.conditionExpression).toBe('${approved == false}');
+	});
+
+	test('validates collapsed subprocess fixture with no errors', () => {
+		const issues = validateBpmnXml(legacyCollapsedSubprocessFixture);
+		const errors = issues.filter(i => i.severity === 'error');
+		expect(errors.length).toBe(0);
+	});
+
+	test('round-trips collapsed subprocess without data loss', () => {
+		const state = extractFlowableDocumentState(legacyCollapsedSubprocessFixture);
+		const mergedXml = mergeFlowableDocumentXml(legacyCollapsedSubprocessFixture, legacyCollapsedSubprocessFixture, state);
+
+		expect(mergedXml).toMatch(/subProcess id="subprocess1"/);
+		expect(mergedXml).toMatch(/activiti:assignee="\$\{initiator\}"/);
+		expect(mergedXml).toMatch(/activiti:class="com.example.flowable.ApprovalDelegate"/);
+		expect(mergedXml).toMatch(/activiti:class="com.example.flowable.RejectionDelegate"/);
+		expect(mergedXml).toMatch(/Approve or reject the incoming request\./);
+
+		// Verify multi-diagram structure is preserved
+		expect(mergedXml).toMatch(/BPMNDiagram id="BPMNDiagram_legacyCollapsedSubprocessProcess"/);
+		expect(mergedXml).toMatch(/BPMNDiagram id="BPMNDiagram_subprocess1"/);
+		expect(mergedXml).toMatch(/isExpanded="false"/);
+	});
+
+	test('merges updated collapsed subprocess child attributes into BPMN XML', () => {
+		const state = extractFlowableDocumentState(legacyCollapsedSubprocessFixture);
+		state.elements.usertask1.activitiAttributes.assignee = 'manager';
+		state.elements.servicetask1.activitiAttributes.class = 'com.example.flowable.NewApprovalDelegate';
+		state.elements.subflow3.conditionExpression = '${status == "approved"}';
+
+		const strippedXml = legacyCollapsedSubprocessFixture
+			.replace(' activiti:assignee="${initiator}"', '')
+			.replace(' activiti:class="com.example.flowable.ApprovalDelegate"', '');
+
+		const mergedXml = mergeFlowableDocumentXml(strippedXml, legacyCollapsedSubprocessFixture, state);
+
+		expect(mergedXml).toMatch(/activiti:assignee="manager"/);
+		expect(mergedXml).toMatch(/activiti:class="com.example.flowable.NewApprovalDelegate"/);
+		expect(mergedXml).toMatch(/\$\{status == "approved"\}/);
+	});
 });

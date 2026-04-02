@@ -74,6 +74,9 @@ interface CanvasService {
 	zoom(level: 'fit-viewport'): void;
 	viewbox(): { x: number; y: number; width: number; height: number };
 	viewbox(box: { x: number; y: number; width: number; height: number }): void;
+	getRootElement(): BpmnElement;
+	setRootElement(rootElement: BpmnElement): void;
+	findRoot(id: string): BpmnElement | undefined;
 }
 
 interface ElementRegistryService {
@@ -558,6 +561,7 @@ let fieldCounter = 0;
 let listenerCounter = 0;
 let formPropertyCounter = 0;
 let selectedElement: BpmnElement | null = null;
+let currentRootId: string | null = null;
 let flowableState: FlowableDocumentState = createEmptyFlowableState();
 let metadataSaveTimer: number | undefined;
 let fieldIdCounter = 0;
@@ -2128,12 +2132,21 @@ async function loadXml(xml: string): Promise<void> {
 	applyingRemoteUpdate = true;
 	setStatus('Loading BPMN diagram...');
 
-	// Save viewport before re-import so we can restore it
+	// Save viewport and current root before re-import so we can restore them
 	const savedViewbox = initialLoadDone ? canvasService.viewbox() : null;
+	const savedRootId = currentRootId;
 
 	try {
 		const previousSelectionId = selectedElement ? getElementId(selectedElement) : undefined;
 		const result = await modeler.importXML(xml);
+
+		// Restore subprocess drill-down plane if we were inside one
+		if (savedRootId) {
+			const previousRoot = canvasService.findRoot(savedRootId);
+			if (previousRoot) {
+				canvasService.setRootElement(previousRoot);
+			}
+		}
 
 		if (savedViewbox) {
 			// Re-sync: restore previous viewport position
@@ -2240,6 +2253,14 @@ modeler.on('commandStack.changed', () => {
 	void saveXml();
 	renderProperties();
 	updateUndoRedoState();
+});
+
+// Track current root element for subprocess drill-down persistence
+eventBus.on('root.set', (event: Record<string, unknown>) => {
+	const element = event.element as BpmnElement | undefined;
+	if (element) {
+		currentRootId = element.id || null;
+	}
 });
 
 window.addEventListener('message', (event: MessageEvent<HostToWebviewMessage>) => {

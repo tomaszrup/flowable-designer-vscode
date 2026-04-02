@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC" xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:activiti="http://activiti.org/bpmn" targetNamespace="http://www.activiti.org/test">
+  <process id="legacyCollapsedSubprocessProcess" name="Legacy Collapsed Subprocess Process" isExecutable="true">
+    <startEvent id="startevent1" name="Start"/>
+    <sequenceFlow id="flow1" sourceRef="startevent1" targetRef="subprocess1"/>
+    <subProcess id="subprocess1" name="Approval Subprocess">
+      <startEvent id="substartevent1" name="Sub Start"/>
+      <sequenceFlow id="subflow1" sourceRef="substartevent1" targetRef="usertask1"/>
+      <userTask id="usertask1" name="Approve Request" activiti:assignee="${initiator}">
+        <documentation>Approve or reject the incoming request.</documentation>
+      </userTask>
+      <sequenceFlow id="subflow2" sourceRef="usertask1" targetRef="exclusivegateway1"/>
+      <exclusiveGateway id="exclusivegateway1" name="Approved?"/>
+      <sequenceFlow id="subflow3" name="Yes" sourceRef="exclusivegateway1" targetRef="servicetask1">
+        <conditionExpression xsi:type="tFormalExpression">${approved == true}</conditionExpression>
+      </sequenceFlow>
+      <sequenceFlow id="subflow4" name="No" sourceRef="exclusivegateway1" targetRef="servicetask2">
+        <conditionExpression xsi:type="tFormalExpression">${approved == false}</conditionExpression>
+      </sequenceFlow>
+      <serviceTask id="servicetask1" name="Process Approval" activiti:class="com.example.flowable.ApprovalDelegate"/>
+      <serviceTask id="servicetask2" name="Process Rejection" activiti:class="com.example.flowable.RejectionDelegate"/>
+      <sequenceFlow id="subflow5" sourceRef="servicetask1" targetRef="subendevent1"/>
+      <sequenceFlow id="subflow6" sourceRef="servicetask2" targetRef="subendevent1"/>
+      <endEvent id="subendevent1" name="Sub End"/>
+      <intermediateThrowEvent id="Event_1720ln4"/>
+      <endEvent id="Event_11x3a07"/>
+      <task id="Activity_119sl4v"/>
+      <task id="Activity_17kol1r"/>
+    </subProcess>
+    <sequenceFlow id="flow2" sourceRef="subprocess1" targetRef="endevent1"/>
+    <endEvent id="endevent1" name="End"/>
+  </process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_legacyCollapsedSubprocessProcess">
+    <bpmndi:BPMNPlane id="BPMNPlane_legacyCollapsedSubprocessProcess" bpmnElement="legacyCollapsedSubprocessProcess">
+      <bpmndi:BPMNShape id="BPMNShape_startevent1" bpmnElement="startevent1">
+        <omgdc:Bounds x="90" y="250" width="35" height="35"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_subprocess1" bpmnElement="subprocess1" isExpanded="false">
+        <omgdc:Bounds x="250" y="240" width="135" height="55"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_endevent1" bpmnElement="endevent1">
+        <omgdc:Bounds x="490" y="250" width="35" height="35"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow1" bpmnElement="flow1">
+        <omgdi:waypoint x="125" y="267"/>
+        <omgdi:waypoint x="250" y="267"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow2" bpmnElement="flow2">
+        <omgdi:waypoint x="385" y="267"/>
+        <omgdi:waypoint x="490" y="267"/>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_subprocess1">
+    <bpmndi:BPMNPlane id="BPMNPlane_subprocess1" bpmnElement="subprocess1">
+      <bpmndi:BPMNShape id="BPMNShape_substartevent1" bpmnElement="substartevent1">
+        <omgdc:Bounds x="90" y="250" width="35" height="35"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_usertask1" bpmnElement="usertask1">
+        <omgdc:Bounds x="200" y="240" width="135" height="55"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_exclusivegateway1" bpmnElement="exclusivegateway1" isMarkerVisible="true">
+        <omgdc:Bounds x="400" y="247" width="40" height="40"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_servicetask1" bpmnElement="servicetask1">
+        <omgdc:Bounds x="510" y="180" width="135" height="55"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_servicetask2" bpmnElement="servicetask2">
+        <omgdc:Bounds x="510" y="310" width="135" height="55"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_subendevent1" bpmnElement="subendevent1">
+        <omgdc:Bounds x="720" y="250" width="35" height="35"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_11x3a07_di" bpmnElement="Event_11x3a07">
+        <omgdc:Bounds x="282" y="362" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_119sl4v_di" bpmnElement="Activity_119sl4v">
+        <omgdc:Bounds x="70" y="330" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_17kol1r_di" bpmnElement="Activity_17kol1r">
+        <omgdc:Bounds x="-70" y="270" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1720ln4_di" bpmnElement="Event_1720ln4">
+        <omgdc:Bounds x="212" y="122" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="BPMNEdge_subflow1" bpmnElement="subflow1">
+        <omgdi:waypoint x="125" y="267"/>
+        <omgdi:waypoint x="200" y="267"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_subflow2" bpmnElement="subflow2">
+        <omgdi:waypoint x="335" y="267"/>
+        <omgdi:waypoint x="400" y="267"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_subflow3" bpmnElement="subflow3">
+        <omgdi:waypoint x="440" y="247"/>
+        <omgdi:waypoint x="510" y="207"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_subflow4" bpmnElement="subflow4">
+        <omgdi:waypoint x="440" y="287"/>
+        <omgdi:waypoint x="510" y="337"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_subflow5" bpmnElement="subflow5">
+        <omgdi:waypoint x="645" y="207"/>
+        <omgdi:waypoint x="720" y="267"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_subflow6" bpmnElement="subflow6">
+        <omgdi:waypoint x="645" y="337"/>
+        <omgdi:waypoint x="720" y="267"/>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>
