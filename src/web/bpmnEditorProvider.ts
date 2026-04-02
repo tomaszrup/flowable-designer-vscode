@@ -281,11 +281,18 @@ export class BpmnEditorProvider implements vscode.CustomTextEditorProvider {
 					break;
 				}
 				case 'open-source': {
-					// Check if the source document is already visible in another editor
-					const alreadyOpen = vscode.window.visibleTextEditors.some(
+					// Toggle: close if already visible, open if not
+					const sourceEditor = vscode.window.visibleTextEditors.find(
 						e => e.document.uri.toString() === document.uri.toString()
 					);
-					if (!alreadyOpen) {
+					if (sourceEditor) {
+						// Close the source tab by showing it then running the close command
+						await vscode.window.showTextDocument(sourceEditor.document, {
+							viewColumn: sourceEditor.viewColumn,
+							preserveFocus: false,
+						});
+						await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+					} else {
 						void vscode.window.showTextDocument(document.uri, {
 							viewColumn: vscode.ViewColumn.Beside,
 							preview: false,
