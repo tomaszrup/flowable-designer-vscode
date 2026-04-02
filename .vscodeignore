@@ -17,3 +17,4 @@ esbuild.js
 **/*.map
 **/*.ts
 **/.vscode-test.*
+.codex

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:activiti="http://activiti.org/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC" xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI" xmlns:custom="http://example.com/custom" targetNamespace="http://example.com/lexical">
+  <signal id="approvalSignal" name="Approval Signal"/>
+  <message id="startMessage" name="Start Message"/>
+  <process id="lexicalProcess" name="Lexical Process" isExecutable="true" custom:processFlag="on">
+    <documentation>Process level documentation</documentation>
+    <startEvent id="start1" name="Start"/>
+    <!-- between start and review -->
+    <userTask id="reviewTask" name="Review" activiti:assignee="${initiator}" activiti:formKey="reviewForm" custom:alpha="1">
+      <extensionElements>
+        <!-- extension comment -->
+        <activiti:field name="priority">
+          <activiti:string>high</activiti:string>
+        </activiti:field>
+        <custom:hint code="A"/>
+      </extensionElements>
+      <documentation>Review docs</documentation>
+    </userTask>
+    <sequenceFlow id="flow1" sourceRef="start1" targetRef="reviewTask"/>
+    <endEvent id="end1" name="End"/>
+    <sequenceFlow id="flow2" sourceRef="reviewTask" targetRef="end1"/>
+  </process>
+  <!-- before diagram -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_lexicalProcess">
+    <bpmndi:BPMNPlane id="BPMNPlane_lexicalProcess" bpmnElement="lexicalProcess">
+      <bpmndi:BPMNShape id="BPMNShape_start1" bpmnElement="start1">
+        <omgdc:Bounds x="80" y="150" width="35" height="35"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_reviewTask" bpmnElement="reviewTask">
+        <omgdc:Bounds x="180" y="140" width="100" height="55"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_end1" bpmnElement="end1">
+        <omgdc:Bounds x="340" y="150" width="35" height="35"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow1" bpmnElement="flow1">
+        <omgdi:waypoint x="115" y="167"/>
+        <omgdi:waypoint x="180" y="167"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow2" bpmnElement="flow2">
+        <omgdi:waypoint x="280" y="167"/>
+        <omgdi:waypoint x="340" y="167"/>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>
