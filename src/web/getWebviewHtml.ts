@@ -63,6 +63,24 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
 			font-family: var(--vscode-font-family);
 		}
 
+		/* Suppress default browser / VS Code focus ring on the diagram area */
+		.shell:focus,
+		.canvas:focus,
+		.canvas:focus-visible,
+		#canvas:focus,
+		#canvas:focus-visible,
+		.djs-container:focus,
+		.djs-container:focus-visible,
+		.djs-container svg:focus,
+		.djs-container svg:focus-visible,
+		.djs-parent:focus,
+		.djs-parent:focus-visible,
+		body:focus,
+		html:focus {
+			outline: none !important;
+			border-color: transparent !important;
+		}
+
 		/* diagram-js critical safety-net styles */
 		.djs-outline,
 		.djs-selection-outline {
