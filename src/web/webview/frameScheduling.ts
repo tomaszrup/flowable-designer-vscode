@@ -10,3 +10,23 @@ export function replacePendingAnimationFrame(
 
 	return requestFrame(callback);
 }
+
+export function createAnimationFrameScheduler(
+	requestFrame: (callback: FrameRequestCallback) => number,
+	cancelFrame: (handle: number) => void,
+	callback: FrameRequestCallback,
+): () => void {
+	let pendingId: number | null = null;
+
+	return () => {
+		pendingId = replacePendingAnimationFrame(
+			pendingId,
+			requestFrame,
+			cancelFrame,
+			(frameTime) => {
+				pendingId = null;
+				callback(frameTime);
+			},
+		);
+	};
+}

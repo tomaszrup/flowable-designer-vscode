@@ -8,7 +8,7 @@ import { makeDraggableItem, makeProcessScopedDraggableItem } from './dragDrop';
 import { createElementActions } from './elementActions';
 import { createElementState } from './elementState';
 import { syncActionCountersFromState, type ActionCounters } from './counterSync';
-import { replacePendingAnimationFrame } from './frameScheduling';
+import { createAnimationFrameScheduler, replacePendingAnimationFrame } from './frameScheduling';
 import { createPropertyUi } from './propertyUi';
 import { getKnownProcessIds, remapProcessScopedIds } from './processScoped';
 import { renderPropertiesPanel } from './renderProperties';
@@ -131,10 +131,18 @@ function renameElementState(oldId: string, newId: string, type: string): void {
 		remapProcessScopedIds(flowableState.dataObjects, oldId, newId);
 	}
 	selectedElement = elementRegistry.get(newId) || selectedElement;
-	renderProperties();
+	schedulePropertiesRender();
 }
 
 const ui = createPropertyUi({ collapsedGroups, persistUiState, nextFieldId, postMessage, status, issues, toastContainer });
+const schedulePropertiesRender = createAnimationFrameScheduler(
+	(callback) => requestAnimationFrame(callback),
+	(id) => cancelAnimationFrame(id),
+	() => {
+		renderProperties();
+	},
+);
+
 function queueMetadataSave(): void {
 	if (metadataSaveTimer) {
 		globalThis.clearTimeout(metadataSaveTimer);
@@ -143,8 +151,8 @@ function queueMetadataSave(): void {
 	metadataSaveTimer = globalThis.setTimeout(() => { void saveXml(); }, 120);
 }
 const actions = {
-	...createElementActions({ getSelectedElement, ensureElementState, renameElementState, modeling, queueMetadataSave, setStatus: ui.setStatus, renderProperties: () => renderProperties(), counters }),
-	...createDocumentActions({ getFlowableState, getKnownProcessIds: getKnownProcessIdsForState, queueMetadataSave, renderProperties: () => renderProperties(), setStatus: ui.setStatus, counters }),
+	...createElementActions({ getSelectedElement, ensureElementState, renameElementState, modeling, queueMetadataSave, setStatus: ui.setStatus, renderProperties: schedulePropertiesRender, counters }),
+	...createDocumentActions({ getFlowableState, getKnownProcessIds: getKnownProcessIdsForState, queueMetadataSave, renderProperties: schedulePropertiesRender, setStatus: ui.setStatus, counters }),
 };
 
 function applyPropertyFilter(query: string): void {
@@ -162,7 +170,7 @@ function applyPropertyFilter(query: string): void {
 function renderProperties(): void {
 	fieldIdCounter = 0;
 	renderPropertiesPanel(
-		{ ui, actions, getSelectedElement, getFlowableState, ensureElementState, getKnownProcessIds: getKnownProcessIdsForState, makeDraggableItem, makeProcessScopedDraggableItem, queueMetadataSave, renderProperties, modeling, elementRegistry, postMessage, setPendingFilePick: (textarea, elementId) => { pendingFilePickTextArea = { textarea, elementId }; } },
+		{ ui, actions, getSelectedElement, getFlowableState, ensureElementState, getKnownProcessIds: getKnownProcessIdsForState, makeDraggableItem, makeProcessScopedDraggableItem, queueMetadataSave, renderProperties: schedulePropertiesRender, modeling, elementRegistry, postMessage, setPendingFilePick: (textarea, elementId) => { pendingFilePickTextArea = { textarea, elementId }; } },
 		properties,
 		propertySearch,
 		sidebarEl,
@@ -207,7 +215,7 @@ async function loadXml(xml: string, nextFlowableState: FlowableDocumentState): P
 		ui.setStatus('Diagram synchronized');
 		vscode.setState({ xml, flowableState, collapsedGroups: Array.from(collapsedGroups), sidebarWidth });
 		selectedElement = previousSelectionId ? elementRegistry.get(previousSelectionId) || null : null;
-		renderProperties();
+		schedulePropertiesRender();
 		updateUndoRedoState();
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
@@ -291,7 +299,7 @@ async function exportSvg(): Promise<void> {
 eventBus.on('selection.changed', (event) => {
 	selectedElement = (event as { newSelection?: BpmnElement[] }).newSelection?.[0] || null;
 	if (!applyingRemoteUpdate) { savedSidebarScroll = 0; }
-	renderProperties();
+	schedulePropertiesRender();
 });
 eventBus.on('copyPaste.pasteElement', (event) => {
 	const descriptor = (event as { descriptor?: { id?: string; oldIds?: string[] } }).descriptor;
@@ -301,7 +309,7 @@ eventBus.on('copyPaste.pasteElement', (event) => {
 	Object.assign(cloned, { ...original, id: descriptor.id, activitiAttributes: { ...original.activitiAttributes }, fieldExtensions: original.fieldExtensions.map((item) => ({ ...item, id: `copy-${item.id}` })), taskListeners: original.taskListeners.map((item) => ({ ...item, id: `copy-${item.id}` })), executionListeners: original.executionListeners.map((item) => ({ ...item, id: `copy-${item.id}` })), formProperties: original.formProperties.map((item) => ({ ...item })), inputParameters: original.inputParameters.map((item) => ({ ...item, id: `copy-${item.id}` })), outputParameters: original.outputParameters.map((item) => ({ ...item, id: `copy-${item.id}` })), multiInstance: original.multiInstance ? { ...original.multiInstance } : null, exceptionMaps: original.exceptionMaps.map((item) => ({ ...item })), preservedAttributes: { ...original.preservedAttributes }, preservedExtensionElements: [...original.preservedExtensionElements] });
 	flowableState.elements[descriptor.id] = cloned;
 });
-modeler.on('commandStack.changed', () => { updateDirtyIndicator(true); void saveXml(); renderProperties(); updateUndoRedoState(); });
+modeler.on('commandStack.changed', () => { updateDirtyIndicator(true); void saveXml(); schedulePropertiesRender(); updateUndoRedoState(); });
 eventBus.on('root.set', (event) => { const element = event.element as BpmnElement | undefined; if (element) { currentRootId = element.id || null; } });
 
 globalThis.addEventListener('message', (event: MessageEvent<HostToWebviewMessage>) => { // NOSONAR: origin is validated against the current webview origin below.
