@@ -1722,7 +1722,7 @@ describe('Web Extension Test Suite', () => {
 </definitions>`;
 
 		const state = extractFlowableDocumentState(originalXml);
-		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state, { origin: 'source' });
 
 		expect(mergedXml).toContain('<!-- top-level comment -->');
 		expect(mergedXml).toContain('<?xml-stylesheet type="text/xsl" href="diagram.xsl"?>');
@@ -1733,8 +1733,21 @@ describe('Web Extension Test Suite', () => {
 	});
 
 	test('preserves existing BPMN diagram comments in nested collapsed subprocess documents', () => {
-		const state = extractFlowableDocumentState(legacyNestedCollapsedSubprocessFixture);
-		const mergedXml = mergeFlowableDocumentXml(legacyNestedCollapsedSubprocessFixture, legacyNestedCollapsedSubprocessFixture, state);
+		const fixtureWithDiagramComments = legacyNestedCollapsedSubprocessFixture
+			.replace(
+				'  <bpmndi:BPMNDiagram id="BPMNDiagram_nestedCollapsedSubprocessProcess">',
+				'  <!-- Main process diagram: subprocess1 shown collapsed -->\n  <bpmndi:BPMNDiagram id="BPMNDiagram_nestedCollapsedSubprocessProcess">',
+			)
+			.replace(
+				'  <bpmndi:BPMNDiagram id="BPMNDiagram_subprocess1">',
+				'  <!-- Level 1: contents of subprocess1, with subprocess2 shown collapsed -->\n  <bpmndi:BPMNDiagram id="BPMNDiagram_subprocess1">',
+			)
+			.replace(
+				'  <bpmndi:BPMNDiagram id="BPMNDiagram_subprocess2">',
+				'  <!-- Level 2: contents of subprocess2 (innermost) -->\n  <bpmndi:BPMNDiagram id="BPMNDiagram_subprocess2">',
+			);
+		const state = extractFlowableDocumentState(fixtureWithDiagramComments);
+		const mergedXml = mergeFlowableDocumentXml(fixtureWithDiagramComments, fixtureWithDiagramComments, state);
 
 		expect(mergedXml).toContain('<!-- Main process diagram: subprocess1 shown collapsed -->');
 		expect(mergedXml).toContain('<!-- Level 1: contents of subprocess1, with subprocess2 shown collapsed -->');
@@ -1756,7 +1769,7 @@ describe('Web Extension Test Suite', () => {
 </definitions>`;
 
 		const state = extractFlowableDocumentState(originalXml);
-		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state, { origin: 'source' });
 
 		expect(mergedXml).toContain('<userTask id="task1" name="Do work"/>');
 		expect(mergedXml).not.toContain('<serviceTask id="task1"');
@@ -1811,7 +1824,7 @@ describe('Web Extension Test Suite', () => {
 </definitions>`;
 
 		const state = extractFlowableDocumentState(originalXml);
-		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state, { origin: 'source' });
 
 		expect(mergedXml).toContain('custom:beta="2"');
 		expect(mergedXml).toContain('xmlns:custom="http://example.com/custom"');
@@ -1833,7 +1846,7 @@ describe('Web Extension Test Suite', () => {
 </definitions>`;
 
 		const state = extractFlowableDocumentState(originalXml);
-		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state, { origin: 'source' });
 
 		expect(mergedXml).toContain('activiti:customFlag="yes"');
 		expect(() => parseXmlDocument(mergedXml)).not.toThrow();
@@ -2953,7 +2966,7 @@ describe('Web Extension Test Suite', () => {
 </definitions>`;
 
 		const state = extractFlowableDocumentState(originalXml);
-		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state, { origin: 'source' });
 
 		expect(mergedXml).toContain('<!-- new between -->');
 		expect(mergedXml).not.toContain('<!-- old between -->');
@@ -2980,7 +2993,7 @@ describe('Web Extension Test Suite', () => {
 </definitions>`;
 
 		const state = extractFlowableDocumentState(originalXml);
-		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state, { origin: 'source' });
 
 		expect(mergedXml).not.toContain('stale comment');
 	});

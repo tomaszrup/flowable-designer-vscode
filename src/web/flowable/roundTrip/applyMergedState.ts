@@ -41,6 +41,7 @@ interface ApplyMergedStateParams {
 	serializedDefinitions: XmlElement;
 	originalState: FlowableDocumentState;
 	mergedState: FlowableDocumentState;
+	preserveUnmatchedLexicalNodes: boolean;
 }
 
 function buildSignalDefinitionXml(id: string, name: string, scope: string): string {
@@ -60,12 +61,14 @@ export function applyMergedStateToDocument({
 	serializedDefinitions,
 	originalState,
 	mergedState,
+	preserveUnmatchedLexicalNodes,
 }: ApplyMergedStateParams): void {
 	const structuralContext = {
 		originalById: buildIdMap(originalDocument),
+		preserveUnmatchedLexicalNodes,
 	};
 
-	syncDocumentLexicalNodes(originalDocument, serializedDocument);
+	syncDocumentLexicalNodes(originalDocument, serializedDocument, structuralContext);
 	syncStructuralAttributes(originalDefinitions, serializedDefinitions);
 	reconcileStructuralChildren(originalDefinitions, serializedDefinitions, structuralContext);
 

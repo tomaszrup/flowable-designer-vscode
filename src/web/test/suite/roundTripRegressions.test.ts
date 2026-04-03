@@ -168,6 +168,30 @@ describe('round-trip regressions', () => {
 		expect(() => parseXmlDocument(`<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE definitions><definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"/>`)).toThrow(/DOCTYPE/);
 	});
 
+	test('preserves existing comments for designer-origin merges when serialized BPMN omits lexical nodes', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/test">
+  <process id="Process_1" isExecutable="true">
+    <startEvent id="start" name="Start"/>
+    <!-- keep this comment -->
+    <endEvent id="end" name="End"/>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/test">
+  <process id="Process_1" isExecutable="true">
+    <startEvent id="start" name="Renamed Start"/>
+    <endEvent id="end" name="End"/>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state, { origin: 'designer' });
+
+		expect(mergedXml).toContain('<!-- keep this comment -->');
+		expect(mergedXml).toContain('name="Renamed Start"');
+	});
+
 	test('reports duplicate flow node ids during validation', () => {
 		const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/test">

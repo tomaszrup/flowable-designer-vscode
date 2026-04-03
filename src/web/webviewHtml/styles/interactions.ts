@@ -92,11 +92,11 @@ export const PROPERTY_INTERACTION_STYLES = String.raw`.toast-container {
 }
 
 #status[data-state="idle"]::before {
-	content: '\\2713';
+	content: '\2713';
 }
 
 #status[data-state="error"]::before {
-	content: '\\26A0';
+	content: '\26A0';
 }
 
 #status[data-state="error"] {

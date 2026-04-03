@@ -43,13 +43,25 @@ describe('getWebviewHtml', () => {
 	test('reuses one nonce across CSP, style, and script tags', () => {
 		const { extensionUri, webview } = createWebviewMock();
 		const html = getWebviewHtml(webview, extensionUri);
-		const styleNonce = html.match(/<style nonce="([^"]+)">/)?.[1];
-		const scriptNonce = html.match(/<script nonce="([^"]+)"/)?.[1];
+		const styleNonce = /<style nonce="([^"]+)">/.exec(html)?.[1];
+		const scriptNonce = /<script nonce="([^"]+)"/.exec(html)?.[1];
 
 		expect(styleNonce).toBeDefined();
 		expect(styleNonce).toHaveLength(32);
 		expect(scriptNonce).toBe(styleNonce);
 		expect(html).toContain(`style-src vscode-resource: 'nonce-${styleNonce}'`);
 		expect(html).toContain(`script-src 'nonce-${styleNonce}'`);
+	});
+
+	test('emits single CSS unicode escapes for pseudo-element icons', () => {
+		const { extensionUri, webview } = createWebviewMock();
+		const html = getWebviewHtml(webview, extensionUri);
+
+		expect(html).toContain(String.raw`content: '\2713';`);
+		expect(html).toContain(String.raw`content: '\26A0';`);
+		expect(html).toContain(String.raw`content: '\203A';`);
+		expect(html).not.toContain(String.raw`content: '\\2713';`);
+		expect(html).not.toContain(String.raw`content: '\\26A0';`);
+		expect(html).not.toContain(String.raw`content: '\\203A';`);
 	});
 });

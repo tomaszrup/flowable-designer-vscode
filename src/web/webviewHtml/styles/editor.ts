@@ -105,7 +105,7 @@ export const ADVANCED_EDITOR_STYLES = String.raw`.djs-minimap {
 }
 
 .bjs-breadcrumbs li:not(:first-child)::before {
-	content: '\\203A';
+	content: '\203A';
 	padding: 0 6px;
 	color: var(--muted);
 	font-size: 16px;

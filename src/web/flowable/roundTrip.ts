@@ -233,6 +233,7 @@ export function mergeFlowableDocumentXml(
 		serializedDefinitions,
 		originalState,
 		mergedState,
+		preserveUnmatchedLexicalNodes: options.origin !== 'source',
 	});
 
 	return serializeXmlDocument(originalDocument);

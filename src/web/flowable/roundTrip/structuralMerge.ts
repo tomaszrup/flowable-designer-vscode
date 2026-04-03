@@ -34,6 +34,11 @@ interface NodePlacement {
 
 export interface StructuralMergeContext {
 	originalById: Map<string, XmlElement>;
+	preserveUnmatchedLexicalNodes: boolean;
+}
+
+function shouldPreserveUnmatchedLexicalNodes(sourceHasLexicalNodes: boolean, context: StructuralMergeContext): boolean {
+	return context.preserveUnmatchedLexicalNodes && !sourceHasLexicalNodes;
 }
 
 function shouldSyncStructuralAttribute(attributeName: string): boolean {
@@ -314,8 +319,12 @@ function removeUnkeptDocumentChildren(
 	keptChildren: Set<XmlNode>,
 	sourceHasLexicalNodes: boolean,
 	documentElementOrderChanged: boolean,
+	context: StructuralMergeContext,
 ): void {
 	for (const child of Array.from(target.childNodes).filter((node) => !isXmlDeclarationNode(node))) {
+		if (!keptChildren.has(child) && child.nodeType !== child.ELEMENT_NODE && shouldPreserveUnmatchedLexicalNodes(sourceHasLexicalNodes, context)) {
+			continue;
+		}
 		const shouldRemove = !keptChildren.has(child)
 			&& (child.nodeType === child.ELEMENT_NODE || sourceHasLexicalNodes || !documentElementOrderChanged);
 		if (shouldRemove) {
@@ -324,7 +333,7 @@ function removeUnkeptDocumentChildren(
 	}
 }
 
-export function syncDocumentLexicalNodes(target: XmlDocument, source: XmlDocument): void {
+export function syncDocumentLexicalNodes(target: XmlDocument, source: XmlDocument, context: StructuralMergeContext): void {
 	const sourceChildren = Array.from(source.childNodes).filter((node) => !isXmlDeclarationNode(node));
 	const targetChildren = Array.from(target.childNodes).filter((node) => !isXmlDeclarationNode(node));
 	const sourceHasLexicalNodes = sourceChildren.some((node) => node.nodeType !== node.ELEMENT_NODE);
@@ -338,7 +347,7 @@ export function syncDocumentLexicalNodes(target: XmlDocument, source: XmlDocumen
 	});
 
 	placeNodes(target, placements, (child) => !isXmlDeclarationNode(child));
-	removeUnkeptDocumentChildren(target, keptChildren, sourceHasLexicalNodes, documentElementOrderChanged);
+	removeUnkeptDocumentChildren(target, keptChildren, sourceHasLexicalNodes, documentElementOrderChanged, context);
 }
 
 function getMatchedStructuralNodeById(sourceElement: XmlElement, context: StructuralMergeContext): XmlNode | undefined {
@@ -400,6 +409,9 @@ function removeUnkeptStructuralChildren(
 		if (child.nodeType === child.ELEMENT_NODE) {
 			removeNodeIds(context.originalById, child);
 			detachNode(child);
+			continue;
+		}
+		if (shouldPreserveUnmatchedLexicalNodes(sourceHasLexicalNodes, context)) {
 			continue;
 		}
 		if (sourceHasLexicalNodes || !elementChildOrderChanged) {
