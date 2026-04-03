@@ -432,7 +432,15 @@ function renderFileReferences(refs: string[]): HTMLDivElement {
 		const link = document.createElement('a');
 		link.className = 'file-reference-link';
 		link.href = '#';
-		link.textContent = ref;
+		const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+		icon.setAttribute('width', '12');
+		icon.setAttribute('height', '12');
+		icon.setAttribute('viewBox', '0 0 16 16');
+		icon.setAttribute('fill', 'currentColor');
+		icon.classList.add('file-ref-icon');
+		icon.innerHTML = '<path d="M13.71 4.29l-3-3A1 1 0 0 0 10 1H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5a1 1 0 0 0-.29-.71zM13 13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h5.59L13 5.41V13z"/>';
+		link.appendChild(icon);
+		link.appendChild(document.createTextNode(ref));
 		link.title = `Open ${ref}`;
 		link.addEventListener('click', (e) => {
 			e.preventDefault();
