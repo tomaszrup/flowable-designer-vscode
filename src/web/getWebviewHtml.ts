@@ -246,6 +246,7 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
 
 		.sidebar-body {
 			padding: 8px 14px 16px;
+			min-width: 0;
 		}
 
 		.sidebar h2 {
@@ -281,6 +282,7 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
 		.properties-panel {
 			display: grid;
 			gap: 0;
+			min-width: 0;
 		}
 
 		.property-group {
@@ -291,6 +293,11 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
 			border-radius: 6px;
 			margin-bottom: 8px;
 			background: color-mix(in srgb, var(--bg) 90%, var(--text) 10%);
+			min-width: 0;
+		}
+
+		.property-group > * {
+			min-width: 0;
 		}
 
 		.property-group:last-child {
@@ -339,6 +346,7 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
 		.field {
 			display: grid;
 			gap: 4px;
+			min-width: 0;
 		}
 
 		.field.inline {
@@ -616,21 +624,35 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
 
 		/* File reference links and browse button */
 		.file-references {
-			display: flex;
-			flex-wrap: wrap;
+			display: grid;
 			gap: 6px;
 			margin-top: 4px;
+			min-width: 0;
+		}
+
+		.file-ref-icon {
+			flex-shrink: 0;
+			opacity: 0.8;
+			position: relative;
+			top: 1px;
 		}
 
 		.file-reference-link {
 			display: inline-flex;
 			align-items: center;
-			gap: 4px;
+			gap: 5px;
 			padding: 2px 8px;
+			min-width: 0;
+			max-width: 100%;
+			overflow: hidden;
+			white-space: normal;
+			overflow-wrap: anywhere;
+			word-break: break-word;
 			border-radius: 4px;
 			background: color-mix(in srgb, var(--vscode-textLink-foreground, #3794ff) 12%, transparent);
 			color: var(--vscode-textLink-foreground, #3794ff);
 			font-size: 11px;
+			line-height: 1.4;
 			text-decoration: none;
 			cursor: pointer;
 			border: 1px solid color-mix(in srgb, var(--vscode-textLink-foreground, #3794ff) 25%, transparent);
