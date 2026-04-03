@@ -1,79 +1,19 @@
 import * as vscode from 'vscode';
+import { handleBpmnWebviewMessage } from './bpmnEditorMessageHandling';
 import { BPMN_EDITOR_VIEW_TYPE, DEFAULT_BPMN_XML } from './flowableBpmn';
-import { extractFlowableDocumentState, mergeFlowableDocumentXml } from './flowable/roundTrip';
+import { getActiveBpmnDocument, getActiveBpmnEditorSession, markBpmnEditorSessionActive, registerBpmnEditorSession, unregisterBpmnEditorSession } from './bpmnEditorSessions';
+import { extractFlowableDocumentState } from './flowable/roundTrip';
+import { createEmptyFlowableState } from './flowable/types';
 import { validateBpmnXml } from './flowable/validation';
 import { getWebviewHtml } from './getWebviewHtml';
+
+import { addOverlayToSvg, getImageExportConfig } from './imageExport';
 import type { BpmnValidationIssue, WebviewToHostMessage } from './shared/messages';
 import type { ProcessNavigatorProvider } from './processNavigatorProvider';
 import { simpleHash } from './shared/hash';
 
-interface ImageOverlayConfig {
-	enabled: boolean;
-	showProcessKey: boolean;
-	showNamespace: boolean;
-	showFilename: boolean;
-	showDate: boolean;
-	color: string;
-	backgroundColor: string;
-}
-
-function getImageExportConfig(): { enabled: boolean; format: string; overlay: ImageOverlayConfig } {
-	const config = vscode.workspace.getConfiguration('flowableBpmnDesigner.imageExport');
-	return {
-		enabled: config.get<boolean>('enabled', false),
-		format: config.get<string>('format', 'svg'),
-		overlay: {
-			enabled: config.get<boolean>('overlay.enabled', false),
-			showProcessKey: config.get<boolean>('overlay.showProcessKey', true),
-			showNamespace: config.get<boolean>('overlay.showNamespace', true),
-			showFilename: config.get<boolean>('overlay.showFilename', true),
-			showDate: config.get<boolean>('overlay.showDate', true),
-			color: config.get<string>('overlay.color', '#999999'),
-			backgroundColor: config.get<string>('overlay.backgroundColor', '#ffffff'),
-		},
-	};
-}
-
-function addOverlayToSvg(svg: string, overlay: ImageOverlayConfig, processKey: string, targetNamespace: string, filename: string): string {
-	if (!overlay.enabled) {
-		return svg;
-	}
-
-	const lines: string[] = [];
-	if (overlay.showProcessKey && processKey) { lines.push(`Key: ${processKey}`); }
-	if (overlay.showNamespace && targetNamespace) { lines.push(`NS: ${targetNamespace}`); }
-	if (overlay.showFilename && filename) { lines.push(`File: ${filename}`); }
-	if (overlay.showDate) { lines.push(`Date: ${new Date().toISOString().split('T')[0]}`); }
-
-	if (lines.length === 0) { return svg; }
-
-	const lineHeight = 16;
-	const padding = 8;
-	const textWidth = Math.max(...lines.map(l => l.length * 7)) + padding * 2;
-	const textHeight = lines.length * lineHeight + padding * 2;
-
-	const overlayGroup = `<g transform="translate(10, 10)">
-<rect width="${textWidth}" height="${textHeight}" fill="${escapeAttr(overlay.backgroundColor)}" stroke="${escapeAttr(overlay.color)}" stroke-width="0.5" rx="3" opacity="0.9"/>
-${lines.map((line, i) => `<text x="${padding}" y="${padding + (i + 1) * lineHeight - 3}" font-family="Arial, sans-serif" font-size="11" fill="${escapeAttr(overlay.color)}">${escapeXmlText(line)}</text>`).join('\n')}
-</g>`;
-
-	// Insert before closing </svg>
-	return svg.replace(/<\/svg>\s*$/, `${overlayGroup}\n</svg>`);
-}
-
-function escapeAttr(str: string): string {
-	return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-function escapeXmlText(str: string): string {
-	return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
 export class BpmnEditorProvider implements vscode.CustomTextEditorProvider {
-	private static activeWebview: vscode.Webview | undefined;
-	private static activeDocument: vscode.TextDocument | undefined;
 	private static diagnosticCollection: vscode.DiagnosticCollection;
-	private static pendingSvgResolve: ((svg: string) => void) | undefined;
 	private static navigator: ProcessNavigatorProvider | undefined;
 
 	public static setNavigator(nav: ProcessNavigatorProvider): void {
@@ -92,21 +32,31 @@ export class BpmnEditorProvider implements vscode.CustomTextEditorProvider {
 	}
 
 	public static requestSvgExport(): void {
-		if (!BpmnEditorProvider.activeWebview) {
+		const session = getActiveBpmnEditorSession();
+		if (!session) {
 			void vscode.window.showWarningMessage('No active BPMN editor.');
 			return;
 		}
-			void Promise.resolve(BpmnEditorProvider.activeWebview.postMessage({ type: 'request-svg' })).catch(() => {});
+		void Promise.resolve(session.webview.postMessage({ type: 'request-svg' })).catch(() => {});
 	}
 
 	public static requestValidation(): void {
-		if (!BpmnEditorProvider.activeDocument) {
+		const session = getActiveBpmnEditorSession();
+		if (session) {
+			void Promise.resolve(session.webview.postMessage({ type: 'request-validation' })).catch(() => {
+				void vscode.window.showWarningMessage('Unable to contact the active BPMN editor.');
+			});
+			return;
+		}
+
+		const document = getActiveBpmnDocument();
+		if (!document) {
 			void vscode.window.showWarningMessage('No active BPMN editor.');
 			return;
 		}
-		const xml = BpmnEditorProvider.activeDocument.getText();
+		const xml = document.getText();
 		const issues = validateBpmnXml(xml);
-		BpmnEditorProvider.applyDiagnostics(BpmnEditorProvider.activeDocument.uri, issues);
+		BpmnEditorProvider.applyDiagnostics(document.uri, issues);
 		if (issues.length === 0) {
 			void vscode.window.showInformationMessage('BPMN validation passed — no issues found.');
 		} else {
@@ -145,8 +95,7 @@ export class BpmnEditorProvider implements vscode.CustomTextEditorProvider {
 		};
 		webviewPanel.webview.html = getWebviewHtml(webviewPanel.webview, this.context.extensionUri);
 
-		BpmnEditorProvider.activeWebview = webviewPanel.webview;
-		BpmnEditorProvider.activeDocument = document;
+		registerBpmnEditorSession(document, webviewPanel.webview);
 
 		let lastWrittenXml = '';
 		let onDiskHash = simpleHash(this.getDocumentXml(document));
@@ -158,11 +107,17 @@ export class BpmnEditorProvider implements vscode.CustomTextEditorProvider {
 			}
 
 			const minimapEnabled = vscode.workspace.getConfiguration('flowableBpmnDesigner.editor').get<boolean>('minimap', false);
+			let flowableState = createEmptyFlowableState();
+			try {
+				flowableState = extractFlowableDocumentState(currentXml);
+			} catch {
+				// Keep forwarding the current XML so the webview can surface the import/parsing error.
+			}
 			try {
 				await webviewPanel.webview.postMessage({
 					type: 'load-document',
 					xml: currentXml,
-					flowableState: extractFlowableDocumentState(currentXml),
+					flowableState,
 					minimapEnabled,
 				});
 				lastWrittenXml = currentXml;
@@ -181,8 +136,7 @@ export class BpmnEditorProvider implements vscode.CustomTextEditorProvider {
 
 		webviewPanel.onDidChangeViewState(() => {
 			if (webviewPanel.active) {
-				BpmnEditorProvider.activeWebview = webviewPanel.webview;
-				BpmnEditorProvider.activeDocument = document;
+				markBpmnEditorSessionActive(document, webviewPanel.webview);
 			}
 		});
 
@@ -204,7 +158,7 @@ export class BpmnEditorProvider implements vscode.CustomTextEditorProvider {
 		});
 
 		const fileWatcher = vscode.workspace.createFileSystemWatcher(
-			new vscode.RelativePattern(vscode.Uri.joinPath(document.uri, '..'), document.uri.path.split('/').pop()!)
+			new vscode.RelativePattern(vscode.Uri.joinPath(document.uri, '..'), '*')
 		);
 		const fileChangeSubscription = fileWatcher.onDidChange((uri) => {
 			if (uri.toString() === document.uri.toString()) {
@@ -221,128 +175,28 @@ export class BpmnEditorProvider implements vscode.CustomTextEditorProvider {
 			visibleEditorsSubscription.dispose();
 			fileWatcher.dispose();
 			fileChangeSubscription.dispose();
-			if (BpmnEditorProvider.activeWebview === webviewPanel.webview) {
-				BpmnEditorProvider.activeWebview = undefined;
-				BpmnEditorProvider.activeDocument = undefined;
-			}
+			unregisterBpmnEditorSession(document, webviewPanel.webview);
 			BpmnEditorProvider.diagnosticCollection.delete(document.uri);
 		});
 
 		webviewPanel.webview.onDidReceiveMessage(async (message: WebviewToHostMessage) => {
-			switch (message.type) {
-				case 'ready': {
-					await updateWebview();
-					break;
-				}
-				case 'save-document': {
-					const mergedXml = mergeFlowableDocumentXml(message.xml, this.getDocumentXml(document), message.flowableState);
-					lastWrittenXml = mergedXml;
-					await this.updateTextDocument(document, mergedXml);
-
-					// If content matches what's on disk, auto-save to clear the dirty indicator.
-					// Safe: save triggers onDidChangeTextDocument → updateWebview(),
-					// but updateWebview() bails out because lastWrittenXml === currentXml.
-					if (document.isDirty && simpleHash(document.getText()) === onDiskHash) {
-						await document.save();
-					}
-
-					// Refresh navigator tree
-					BpmnEditorProvider.navigator?.refresh(mergedXml);
-
-					// Auto-validate on save
-					const validateOnSave = vscode.workspace.getConfiguration('flowableBpmnDesigner.validation').get<boolean>('validateOnSave', true);
-					if (validateOnSave) {
-						const issues = validateBpmnXml(mergedXml);
-						BpmnEditorProvider.applyDiagnostics(document.uri, issues);
-					}
-
-					// Auto-export image on save
-					const exportConfig = getImageExportConfig();
-					if (exportConfig.enabled) {
-						void Promise.resolve(webviewPanel.webview.postMessage({ type: 'request-svg' })).catch(() => {});
-					}
-					break;
-				}
-				case 'svg-export': {
-					if (BpmnEditorProvider.pendingSvgResolve) {
-						BpmnEditorProvider.pendingSvgResolve(message.svg);
-						BpmnEditorProvider.pendingSvgResolve = undefined;
-					} else {
-						await this.handleSvgExport(document, message.svg);
-					}
-					break;
-				}
-				case 'validation-result': {
-					BpmnEditorProvider.applyDiagnostics(document.uri, message.issues);
-					break;
-				}
-				case 'show-error': {
-					void vscode.window.showErrorMessage(message.message);
-					break;
-				}
-				case 'open-source': {
-					// Toggle: close if already visible, open if not
-					const sourceEditor = vscode.window.visibleTextEditors.find(
-						e => e.document.uri.toString() === document.uri.toString()
-					);
-					if (sourceEditor) {
-						// Close the source tab by showing it then running the close command
-						await vscode.window.showTextDocument(sourceEditor.document, {
-							viewColumn: sourceEditor.viewColumn,
-							preserveFocus: false,
-						});
-						await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
-					} else {
-						void vscode.window.showTextDocument(document.uri, {
-							viewColumn: vscode.ViewColumn.Beside,
-							preview: false,
-						}).then(editor => {
-							void vscode.languages.setTextDocumentLanguage(editor.document, 'xml');
-						});
-					}
-					break;
-				}
-				case 'pick-file': {
-					const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri) ?? vscode.workspace.workspaceFolders?.[0];
-					const defaultUri = workspaceFolder?.uri ?? vscode.Uri.joinPath(document.uri, '..');
-					const result = await vscode.window.showOpenDialog({
-						canSelectMany: false,
-						openLabel: 'Select Script File',
-						defaultUri,
-					});
-					if (result && result.length > 0) {
-						const selectedUri = result[0];
-						const relativePath = vscode.workspace.asRelativePath(selectedUri, false);
-						void webviewPanel.webview.postMessage({ type: 'file-picked', path: relativePath });
-					}
-					break;
-				}
-				case 'open-file': {
-					if (typeof message.path !== 'string' || !message.path) {
-						break;
-					}
-					const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri) ?? vscode.workspace.workspaceFolders?.[0];
-					if (workspaceFolder) {
-						const fileUri = vscode.Uri.joinPath(workspaceFolder.uri, message.path);
-						// Guard against path traversal outside the workspace
-						if (!fileUri.path.startsWith(workspaceFolder.uri.path + '/')) {
-							void vscode.window.showWarningMessage('File path must be within the workspace.');
-							break;
-						}
-						try {
-							await vscode.workspace.fs.stat(fileUri);
-							void vscode.window.showTextDocument(fileUri, {
-								viewColumn: vscode.ViewColumn.Beside,
-								preview: true,
-							});
-						} catch {
-							void vscode.window.showWarningMessage(`File not found: ${message.path}`);
-						}
-					} else {
-						void vscode.window.showWarningMessage('No workspace folder found to resolve file path.');
-					}
-					break;
-				}
+			try {
+				await handleBpmnWebviewMessage(message, {
+					document,
+					webview: webviewPanel.webview,
+					updateWebview,
+					getDocumentXml: () => this.getDocumentXml(document),
+					updateTextDocument: (xml) => this.updateTextDocument(document, xml),
+					handleSvgExport: (svg) => this.handleSvgExport(document, svg),
+					applyDiagnostics: BpmnEditorProvider.applyDiagnostics,
+					refreshNavigator: (xml) => BpmnEditorProvider.navigator?.refresh(xml),
+					getOnDiskHash: () => onDiskHash,
+					setLastWrittenXml: (xml) => {
+						lastWrittenXml = xml;
+					},
+				});
+			} catch (error) {
+				void vscode.window.showErrorMessage(error instanceof Error ? error.message : 'BPMN editor operation failed.');
 			}
 		});
 	}

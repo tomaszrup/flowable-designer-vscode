@@ -7,12 +7,11 @@ const diagnosticCollection = vscode.languages.createDiagnosticCollection('flowab
 
 export function activate(context: vscode.ExtensionContext) {
 	const provider = BpmnEditorProvider.register(context, diagnosticCollection);
-	context.subscriptions.push(provider);
-	context.subscriptions.push(diagnosticCollection);
 
 	const navigator = registerProcessNavigator(context);
-
 	context.subscriptions.push(
+		provider,
+		diagnosticCollection,
 		vscode.commands.registerCommand('flowable-bpmn-designer.newDiagram', async () => {
 			const document = await vscode.workspace.openTextDocument({
 				language: FLOWABLE_BPMN_LANGUAGE,
@@ -20,19 +19,13 @@ export function activate(context: vscode.ExtensionContext) {
 			});
 
 			await vscode.commands.executeCommand('vscode.openWith', document.uri, BPMN_EDITOR_VIEW_TYPE);
-		})
-	);
-
-	context.subscriptions.push(
+		}),
 		vscode.commands.registerCommand('flowable-bpmn-designer.exportImage', () => {
 			BpmnEditorProvider.requestSvgExport();
-		})
-	);
-
-	context.subscriptions.push(
+		}),
 		vscode.commands.registerCommand('flowable-bpmn-designer.validate', () => {
 			BpmnEditorProvider.requestValidation();
-		})
+		}),
 	);
 
 	// Expose navigator for editor provider to call refresh

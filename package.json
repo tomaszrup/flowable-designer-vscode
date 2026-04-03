@@ -91,6 +91,7 @@
         {
           "id": "flowable-bpmn-designer.processNavigator",
           "name": "Process Navigator",
+          "icon": "resources/flowable-icon.svg",
           "when": "resourceExtname == .bpmn || resourceExtname == .bpmn2"
         }
       ]

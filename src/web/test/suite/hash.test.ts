@@ -52,6 +52,12 @@ describe('simpleHash', () => {
 		expect(Number.isInteger(simpleHash(longStr))).toBe(true);
 	});
 
+	test('stays within signed 32-bit integer range', () => {
+		const hash = simpleHash('x'.repeat(50_000) + '🚀'.repeat(1_000));
+		expect(hash).toBeGreaterThanOrEqual(-2147483648);
+		expect(hash).toBeLessThanOrEqual(2147483647);
+	});
+
 	test('order matters — different order gives different hash', () => {
 		expect(simpleHash('ab')).not.toBe(simpleHash('ba'));
 	});

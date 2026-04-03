@@ -68,6 +68,8 @@ describe('validators', () => {
 		test('accepts ISO 8601 dates', () => {
 			expect(validateTimerValue('2026-12-31T23:59')).toBeNull();
 			expect(validateTimerValue('2026-01-01')).toBeNull();
+			expect(validateTimerValue('2026-12-31T23:59Z')).toBeNull();
+			expect(validateTimerValue('2026-12-31T23:59:30+02:00')).toBeNull();
 		});
 
 		test('accepts repeat patterns', () => {

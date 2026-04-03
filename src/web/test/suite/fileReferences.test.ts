@@ -28,8 +28,12 @@ describe('parseFileReferences', () => {
 		expect(parseFileReferences('send to user@example.com')).toEqual([]);
 	});
 
-	test('ignores patterns with whitespace between @', () => {
-		expect(parseFileReferences('@has space@')).toEqual([]);
+	test('supports file references with spaces in the path', () => {
+		expect(parseFileReferences('@has space@')).toEqual(['has space']);
+	});
+
+	test('trims surrounding whitespace inside a delimited reference', () => {
+		expect(parseFileReferences('@  scripts/my task.groovy  @')).toEqual(['scripts/my task.groovy']);
 	});
 
 	test('handles path with nested directories', () => {

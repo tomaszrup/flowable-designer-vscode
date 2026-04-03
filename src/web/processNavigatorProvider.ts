@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { type Element as XmlElement } from '@xmldom/xmldom';
-import { BPMN_EDITOR_VIEW_TYPE } from './flowableBpmn';
+import { resolveActiveBpmnUri, isBpmnFileName } from './bpmnEditorRouting';
 import { parseXmlDocument } from './flowable/xmlParser';
 
 interface BpmnNodeInfo {
@@ -48,6 +48,12 @@ function formatLabel(type: string): string {
 	return type.replace(/([A-Z])/g, ' $1').trim();
 }
 
+function getElementChildren(element: XmlElement): XmlElement[] {
+	return Array.from(element.childNodes).filter(
+		(node): node is XmlElement => node.nodeType === 1,
+	);
+}
+
 function parseProcessElements(xml: string): BpmnNodeInfo[] {
 	const roots: BpmnNodeInfo[] = [];
 
@@ -76,12 +82,6 @@ function parseProcessElements(xml: string): BpmnNodeInfo[] {
 	]);
 
 	const CONTAINER_TYPES = new Set(['process', 'subProcess', 'transaction', 'collaboration']);
-
-	function getElementChildren(element: XmlElement): XmlElement[] {
-		return Array.from(element.childNodes).filter(
-			(node): node is XmlElement => node.nodeType === 1,
-		);
-	}
 
 	function parseChildren(parent: XmlElement): BpmnNodeInfo[] {
 		const nodes: BpmnNodeInfo[] = [];
@@ -129,7 +129,7 @@ class BpmnTreeItem extends vscode.TreeItem {
 				: vscode.TreeItemCollapsibleState.None,
 		);
 
-		this.description = nodeInfo.id !== nodeInfo.name ? nodeInfo.id : undefined;
+		this.description = nodeInfo.id === nodeInfo.name ? undefined : nodeInfo.id;
 		this.tooltip = `${formatLabel(nodeInfo.type)}: ${nodeInfo.name} (${nodeInfo.id})`;
 		this.iconPath = ELEMENT_ICONS[nodeInfo.type] || new vscode.ThemeIcon('symbol-misc');
 		this.contextValue = nodeInfo.type;
@@ -137,11 +137,11 @@ class BpmnTreeItem extends vscode.TreeItem {
 }
 
 export class ProcessNavigatorProvider implements vscode.TreeDataProvider<BpmnTreeItem> {
-	private _onDidChangeTreeData = new vscode.EventEmitter<BpmnTreeItem | undefined | null>();
+	private readonly _onDidChangeTreeData = new vscode.EventEmitter<BpmnTreeItem | undefined | null>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
 	private roots: BpmnNodeInfo[] = [];
-	private nodeMap = new Map<string, BpmnTreeItem>();
+	private readonly nodeMap = new Map<string, BpmnTreeItem>();
 
 	refresh(xml?: string): void {
 		this.nodeMap.clear();
@@ -173,53 +173,49 @@ export class ProcessNavigatorProvider implements vscode.TreeDataProvider<BpmnTre
 
 export function registerProcessNavigator(context: vscode.ExtensionContext): ProcessNavigatorProvider {
 	const provider = new ProcessNavigatorProvider();
+	let refreshRequestId = 0;
 
 	const treeView = vscode.window.createTreeView('flowable-bpmn-designer.processNavigator', {
 		treeDataProvider: provider,
 	});
-	context.subscriptions.push(treeView);
 
 	// Refresh when the active custom editor changes
 	const refreshFromDocument = () => {
-		const tabs = vscode.window.tabGroups.all.flatMap(g => g.tabs);
-		const bpmnTab = tabs.find(tab => {
-			const input = tab.input as { viewType?: string } | undefined;
-			return input?.viewType === BPMN_EDITOR_VIEW_TYPE;
-		});
-		if (bpmnTab) {
-			const input = bpmnTab.input as { uri?: vscode.Uri };
-			if (input.uri) {
-				vscode.workspace.openTextDocument(input.uri).then(doc => {
-					provider.refresh(doc.getText());
-				}, () => {
-					provider.refresh();
-				});
-			}
-		} else {
+		refreshRequestId += 1;
+		const requestId = refreshRequestId;
+		const activeUri = resolveActiveBpmnUri();
+		if (!activeUri) {
 			provider.refresh();
+			return;
 		}
+
+		vscode.workspace.openTextDocument(activeUri).then((doc) => {
+			if (requestId !== refreshRequestId || resolveActiveBpmnUri()?.toString() !== activeUri.toString()) {
+				return;
+			}
+			provider.refresh(doc.getText());
+		}, () => {
+			if (requestId !== refreshRequestId) {
+				return;
+			}
+			provider.refresh();
+		});
 	};
 
 	// Refresh when text document is saved or changed
 	context.subscriptions.push(
+		treeView,
 		vscode.workspace.onDidSaveTextDocument((doc) => {
-			if (doc.fileName.match(/\.bpmn2?$/i) || doc.fileName.endsWith('.bpmn20.xml')) {
+			if ((isBpmnFileName(doc.fileName) || resolveActiveBpmnUri()?.toString() === doc.uri.toString()) && resolveActiveBpmnUri()?.toString() === doc.uri.toString()) {
 				provider.refresh(doc.getText());
 			}
 		}),
-	);
-
-	context.subscriptions.push(
 		vscode.workspace.onDidChangeTextDocument((event) => {
 			const doc = event.document;
-			if (doc.fileName.match(/\.bpmn2?$/i) || doc.fileName.endsWith('.bpmn20.xml')) {
+			if ((isBpmnFileName(doc.fileName) || resolveActiveBpmnUri()?.toString() === doc.uri.toString()) && resolveActiveBpmnUri()?.toString() === doc.uri.toString()) {
 				provider.refresh(doc.getText());
 			}
 		}),
-	);
-
-	// Refresh on tab change
-	context.subscriptions.push(
 		vscode.window.tabGroups.onDidChangeTabs(() => {
 			refreshFromDocument();
 		}),

@@ -117,6 +117,11 @@ export interface FlowableDataObject extends XmlIdentified {
 	defaultValue: string;
 }
 
+export interface FlowableProcessExtensionState {
+	processId?: string;
+	preservedExtensionElements: string[];
+}
+
 export interface FlowableElementState {
 	id: string;
 	type: string;
@@ -153,6 +158,7 @@ export interface FlowableDocumentState {
 	eventListeners: FlowableEventListener[];
 	localizations: FlowableLocalization[];
 	dataObjects: FlowableDataObject[];
+	processExtensionElements: FlowableProcessExtensionState[];
 }
 
 export const FLOWABLE_ATTRIBUTE_KEYS: FlowableAttributeKey[] = [
@@ -186,6 +192,7 @@ export function createEmptyFlowableState(): FlowableDocumentState {
 		eventListeners: [],
 		localizations: [],
 		dataObjects: [],
+		processExtensionElements: [],
 	};
 }
 
@@ -198,6 +205,10 @@ export function cloneFlowableState(state: FlowableDocumentState): FlowableDocume
 		eventListeners: state.eventListeners.map((e) => ({ ...e })),
 		localizations: state.localizations.map((l) => ({ ...l })),
 		dataObjects: state.dataObjects.map((d) => ({ ...d })),
+		processExtensionElements: state.processExtensionElements.map((item) => ({
+			processId: item.processId,
+			preservedExtensionElements: [...item.preservedExtensionElements],
+		})),
 		elements: Object.fromEntries(
 			Object.entries(state.elements).map(([id, elementState]) => [
 				id,
