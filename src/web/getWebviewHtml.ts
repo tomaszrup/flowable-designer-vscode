@@ -620,6 +620,7 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
 			flex-wrap: wrap;
 			gap: 6px;
 			margin-top: 4px;
+			min-width: 0;
 		}
 
 		.file-reference-link {
@@ -627,6 +628,11 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
 			align-items: center;
 			gap: 4px;
 			padding: 2px 8px;
+			min-width: 0;
+			max-width: 100%;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
 			border-radius: 4px;
 			background: color-mix(in srgb, var(--vscode-textLink-foreground, #3794ff) 12%, transparent);
 			color: var(--vscode-textLink-foreground, #3794ff);
