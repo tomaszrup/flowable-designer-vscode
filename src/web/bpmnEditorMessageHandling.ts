@@ -97,8 +97,14 @@ async function pickWorkspaceFile(document: vscode.TextDocument, webview: vscode.
 		return;
 	}
 
+	const selectedWorkspaceFolder = vscode.workspace.getWorkspaceFolder(result[0]);
+	if (selectedWorkspaceFolder?.uri.toString() !== workspaceFolder?.uri.toString()) {
+		void vscode.window.showWarningMessage('Selected file must be inside the current workspace folder.');
+		return;
+	}
+
 	const relativePath = vscode.workspace.asRelativePath(result[0], false);
-	void webview.postMessage({ type: 'file-picked', path: result[0].toString() || relativePath });
+	void webview.postMessage({ type: 'file-picked', path: relativePath });
 }
 
 async function openWorkspaceFile(document: vscode.TextDocument, relativePath: string): Promise<void> {

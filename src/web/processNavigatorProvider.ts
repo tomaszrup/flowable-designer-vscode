@@ -81,7 +81,8 @@ function parseProcessElements(xml: string): BpmnNodeInfo[] {
 		'in', 'out', 'localization',
 	]);
 
-	const CONTAINER_TYPES = new Set(['process', 'subProcess', 'transaction', 'collaboration']);
+	const CONTAINER_TYPES = new Set(['process', 'subProcess', 'transaction', 'collaboration', 'lane']);
+	const FLATTENED_CONTAINER_TYPES = new Set(['laneSet', 'childLaneSet']);
 
 	function parseChildren(parent: XmlElement): BpmnNodeInfo[] {
 		const nodes: BpmnNodeInfo[] = [];
@@ -93,8 +94,16 @@ function parseProcessElements(xml: string): BpmnNodeInfo[] {
 				continue;
 			}
 
+			if (FLATTENED_CONTAINER_TYPES.has(type)) {
+				nodes.push(...parseChildren(child));
+				continue;
+			}
+
 			const id = child.getAttribute('id') || '';
 			if (!id) {
+				if (CONTAINER_TYPES.has(type)) {
+					nodes.push(...parseChildren(child));
+				}
 				continue;
 			}
 

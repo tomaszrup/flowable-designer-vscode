@@ -29,6 +29,12 @@ interface ProcessElementCollection {
 	endEventCount: number;
 }
 
+interface FlowNodeMetadata {
+	localName: string;
+	skipIncomingValidation: boolean;
+	skipOutgoingValidation: boolean;
+}
+
 function getLocalName(node: XmlNode): string {
 	return node.localName || node.nodeName.split(':').pop() || node.nodeName;
 }
@@ -254,6 +260,28 @@ function validateDefinitionsRoot(document: ReturnType<typeof parseXmlDocument>, 
 	return true;
 }
 
+function validateParticipantProcessReferences(
+	document: ReturnType<typeof parseXmlDocument>,
+	processes: XmlElement[],
+	issues: BpmnValidationIssue[],
+): void {
+	const processIds = new Set(processes
+		.map((process) => process.getAttribute('id') || '')
+		.filter((processId) => processId !== ''));
+
+	for (const participant of getElementsByLocalName(document, 'participant')) {
+		const participantId = participant.getAttribute('id') || '';
+		const processRef = participant.getAttribute('processRef') || '';
+		if (processRef && !processIds.has(processRef)) {
+			issues.push({
+				elementId: participantId,
+				message: `Participant '${participantId || processRef}' references non-existent process '${processRef}'`,
+				severity: 'error',
+			});
+		}
+	}
+}
+
 function validateProcessPresence(document: ReturnType<typeof parseXmlDocument>, issues: BpmnValidationIssue[]): XmlElement[] | undefined {
 	const processes = getElementsByLocalName(document, 'process');
 	if (processes.length > 0) {
@@ -306,33 +334,47 @@ function buildNodeDirectionSets(sequenceFlows: SequenceFlow[]): { nodesWithIncom
 	return { nodesWithIncoming, nodesWithOutgoing };
 }
 
-function buildNodeTypeMap(document: ReturnType<typeof parseXmlDocument>, flowNodeIds: Set<string>): Map<string, string> {
-	const nodeTypeMap = new Map<string, string>();
+function isCompensationHandler(element: XmlElement): boolean {
+	return (getActivitiAttribute(element, 'isForCompensation') || element.getAttribute('isForCompensation') || '') === 'true';
+}
+
+function isCompensationBoundaryEvent(element: XmlElement): boolean {
+	return getLocalName(element) === 'boundaryEvent'
+		&& getElementChildren(element).some((child) => getLocalName(child) === 'compensateEventDefinition');
+}
+
+function buildFlowNodeMetadataMap(document: ReturnType<typeof parseXmlDocument>, flowNodeIds: Set<string>): Map<string, FlowNodeMetadata> {
+	const nodeMetadataMap = new Map<string, FlowNodeMetadata>();
 	for (const element of Array.from(document.getElementsByTagName('*'))) {
 		const elementId = element.getAttribute('id');
 		if (elementId && flowNodeIds.has(elementId)) {
-			nodeTypeMap.set(elementId, getLocalName(element));
+			const localName = getLocalName(element);
+			nodeMetadataMap.set(elementId, {
+				localName,
+				skipIncomingValidation: localName === 'startEvent' || localName === 'boundaryEvent' || isCompensationHandler(element),
+				skipOutgoingValidation: localName === 'endEvent' || isCompensationHandler(element) || isCompensationBoundaryEvent(element),
+			});
 		}
 	}
-	return nodeTypeMap;
+	return nodeMetadataMap;
 }
 
 function validateNodeConnectivity(
 	flowNodeIds: Set<string>,
-	nodeTypeMap: Map<string, string>,
+	nodeMetadataMap: Map<string, FlowNodeMetadata>,
 	nodesWithIncoming: Set<string>,
 	nodesWithOutgoing: Set<string>,
 	issues: BpmnValidationIssue[],
 ): void {
 	for (const nodeId of flowNodeIds) {
-		const localName = nodeTypeMap.get(nodeId);
-		if (!localName) {
+		const metadata = nodeMetadataMap.get(nodeId);
+		if (!metadata) {
 			continue;
 		}
-		if (localName !== 'startEvent' && localName !== 'boundaryEvent' && !nodesWithIncoming.has(nodeId)) {
+		if (!metadata.skipIncomingValidation && !nodesWithIncoming.has(nodeId)) {
 			issues.push({ elementId: nodeId, message: `Element '${nodeId}' has no incoming sequence flow`, severity: 'warning' });
 		}
-		if (localName !== 'endEvent' && !nodesWithOutgoing.has(nodeId)) {
+		if (!metadata.skipOutgoingValidation && !nodesWithOutgoing.has(nodeId)) {
 			issues.push({ elementId: nodeId, message: `Element '${nodeId}' has no outgoing sequence flow`, severity: 'warning' });
 		}
 	}
@@ -349,8 +391,8 @@ function validateProcessElement(document: ReturnType<typeof parseXmlDocument>, p
 	validateProcessEventCounts(processId, startEventCount, endEventCount, issues);
 	validateSequenceFlowReferences(sequenceFlows, flowNodeIds, issues);
 	const { nodesWithIncoming, nodesWithOutgoing } = buildNodeDirectionSets(sequenceFlows);
-	const nodeTypeMap = buildNodeTypeMap(document, flowNodeIds);
-	validateNodeConnectivity(flowNodeIds, nodeTypeMap, nodesWithIncoming, nodesWithOutgoing, issues);
+	const nodeMetadataMap = buildFlowNodeMetadataMap(document, flowNodeIds);
+	validateNodeConnectivity(flowNodeIds, nodeMetadataMap, nodesWithIncoming, nodesWithOutgoing, issues);
 }
 
 export function validateBpmnXml(xml: string): BpmnValidationIssue[] {
@@ -372,6 +414,8 @@ export function validateBpmnXml(xml: string): BpmnValidationIssue[] {
 	if (!processes) {
 		return issues;
 	}
+
+	validateParticipantProcessReferences(document, processes, issues);
 
 	for (const process of processes) {
 		validateProcessElement(document, process, issues);

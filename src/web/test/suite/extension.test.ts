@@ -946,6 +946,29 @@ describe('Web Extension Test Suite', () => {
 		assertDefined(!issues.some(i => i.message.includes('No <process> element')));
 	});
 
+	test('does not report connectivity warnings for compensation handlers', () => {
+		const issues = validateBpmnXml(legacyCompensationCancelFixture);
+
+		expect(issues.some((issue) => issue.elementId === 'compensate_servicetask1' && issue.message.includes('sequence flow'))).toBe(false);
+		expect(issues.some((issue) => issue.elementId === 'boundarycompensation1' && issue.message.includes('outgoing sequence flow'))).toBe(false);
+	});
+
+	test('reports participants that reference a missing process', () => {
+		const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" id="defs1">
+  <collaboration id="collab1">
+    <participant id="pool1" processRef="missingProcess"></participant>
+  </collaboration>
+</definitions>`;
+		const issues = validateBpmnXml(xml);
+
+		expect(issues).toContainEqual(expect.objectContaining({
+			elementId: 'pool1',
+			severity: 'error',
+			message: expect.stringContaining("references non-existent process 'missingProcess'"),
+		}));
+	});
+
 	// Phase 6: Send Task tests
 	test('extracts send task with class implementation', () => {
 		const state = extractFlowableDocumentState(legacyPhase6Fixture);
