@@ -3,7 +3,7 @@
   "publisher": "TomaszRup",
   "displayName": "BPMN Designer ported from Flowable Eclipse Designer",
   "description": "VS Code BPMN editor compatible with legacy Eclipse Flowable Designer files",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "icon": "icon.png",
   "license": "MIT",
   "repository": {

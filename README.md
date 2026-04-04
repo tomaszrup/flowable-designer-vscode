@@ -1,6 +1,6 @@
 # Flowable Designer VS Code
 
-[![Coverage](https://tomaszrup.github.io/flowable-designer-vscode/coverage.svg)](https://tomaszrup.github.io/flowable-designer-vscode/coverage/)
+[Coverage report](https://tomaszrup.github.io/flowable-designer-vscode/coverage/)
 
 A VS Code custom editor for `.bpmn`, `.bpmn2`, and `.bpmn20.xml` files, built for compatibility with the legacy Eclipse Flowable Designer plugin. Open, edit, and save BPMN process definitions while preserving Flowable/Activiti extension attributes.
 
