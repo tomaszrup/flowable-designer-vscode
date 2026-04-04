@@ -7,3 +7,6 @@ node_modules
 sample
 coverage
 .codex
+playwright-report
+test-results
+fixtures/flowable/playwright-*

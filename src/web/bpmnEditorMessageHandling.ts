@@ -32,7 +32,7 @@ async function handleSaveDocumentMessage(
 	options.setLastWrittenXml(mergedXml);
 	await options.updateTextDocument(mergedXml);
 
-	if (options.document.isDirty && simpleHash(options.document.getText()) === options.getOnDiskHash()) {
+	if (simpleHash(options.document.getText()) !== options.getOnDiskHash()) {
 		await options.document.save();
 	}
 

@@ -1,5 +1,7 @@
 # Flowable Designer VS Code
 
+[![Coverage](https://tomaszrup.github.io/flowable-designer-vscode/coverage.svg)](https://tomaszrup.github.io/flowable-designer-vscode/coverage/)
+
 A VS Code custom editor for `.bpmn`, `.bpmn2`, and `.bpmn20.xml` files, built for compatibility with the legacy Eclipse Flowable Designer plugin. Open, edit, and save BPMN process definitions while preserving Flowable/Activiti extension attributes.
 
 For the original Eclipse-based Flowable Designer project, see https://github.com/flowable/flowable-designer.
@@ -100,9 +102,17 @@ Runs automatically on save (configurable) and reports issues in the VS Code Prob
 npm install              # install dependencies
 npm run compile-web      # build the extension and webview
 npm test                 # run the web extension test suite
+npm run test:coverage    # run unit tests with an lcov + summary coverage report
+npm run test:e2e         # run Playwright end-to-end tests in Chromium
 npm run run-in-browser   # launch in the browser-based VS Code host
 npm run package:vsix     # produce a .vsix package
 ```
+
+## CI Setup
+
+GitHub Actions runs unit coverage and Playwright from [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+
+The coverage badge and HTML report are published to GitHub Pages after pushes to the default branch. If Pages is not already enabled for GitHub Actions in the repository settings, enable it once and the workflow will take over deployments.
 
 ## License
 
