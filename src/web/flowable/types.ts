@@ -24,21 +24,25 @@ export type FlowableListenerImplementationType = 'class' | 'expression' | 'deleg
 export type FlowableFormPropertyType = 'string' | 'long' | 'boolean' | 'date' | 'enum';
 export type FlowableEventListenerImplType = 'class' | 'delegateExpression' | 'throwSignalEvent' | 'throwGlobalSignalEvent' | 'throwMessageEvent' | 'throwErrorEvent';
 
-export interface FlowableFieldExtension {
+export interface XmlIdentified {
+	xmlIdentity?: string;
+}
+
+export interface FlowableFieldExtension extends XmlIdentified {
 	id: string;
 	name: string;
 	valueType: FlowableFieldValueType;
 	value: string;
 }
 
-export interface FlowableListener {
+export interface FlowableListener extends XmlIdentified {
 	id: string;
 	event: FlowableListenerEvent;
 	implementationType: FlowableListenerImplementationType;
 	implementation: string;
 }
 
-export interface FlowableFormProperty {
+export interface FlowableFormProperty extends XmlIdentified {
 	id: string;
 	name: string;
 	type: FlowableFormPropertyType;
@@ -48,7 +52,7 @@ export interface FlowableFormProperty {
 	defaultValue: string;
 }
 
-export interface FlowableIOParameter {
+export interface FlowableIOParameter extends XmlIdentified {
 	id: string;
 	source: string;
 	sourceExpression: string;
@@ -70,44 +74,52 @@ export interface FlowableTimerDefinition {
 	value: string;
 }
 
-export interface FlowableSignalDefinition {
+export interface FlowableSignalDefinition extends XmlIdentified {
 	id: string;
 	name: string;
 	scope: string;
 }
 
-export interface FlowableMessageDefinition {
+export interface FlowableMessageDefinition extends XmlIdentified {
 	id: string;
 	name: string;
 }
 
-export interface FlowableEventListener {
+export interface FlowableEventListener extends XmlIdentified {
 	id: string;
+	processId?: string;
 	events: string;
 	implementationType: FlowableEventListenerImplType;
 	implementation: string;
 	entityType: string;
 }
 
-export interface FlowableLocalization {
+export interface FlowableLocalization extends XmlIdentified {
 	id: string;
+	processId?: string;
 	locale: string;
 	name: string;
 	description: string;
 }
 
-export interface FlowableExceptionMap {
+export interface FlowableExceptionMap extends XmlIdentified {
 	id: string;
 	errorCode: string;
 	className: string;
 	includeChildExceptions: boolean;
 }
 
-export interface FlowableDataObject {
+export interface FlowableDataObject extends XmlIdentified {
 	id: string;
+	processId?: string;
 	name: string;
 	itemSubjectRef: string;
 	defaultValue: string;
+}
+
+export interface FlowableProcessExtensionState {
+	processId?: string;
+	preservedExtensionElements: string[];
 }
 
 export interface FlowableElementState {
@@ -146,6 +158,7 @@ export interface FlowableDocumentState {
 	eventListeners: FlowableEventListener[];
 	localizations: FlowableLocalization[];
 	dataObjects: FlowableDataObject[];
+	processExtensionElements: FlowableProcessExtensionState[];
 }
 
 export const FLOWABLE_ATTRIBUTE_KEYS: FlowableAttributeKey[] = [
@@ -179,6 +192,7 @@ export function createEmptyFlowableState(): FlowableDocumentState {
 		eventListeners: [],
 		localizations: [],
 		dataObjects: [],
+		processExtensionElements: [],
 	};
 }
 
@@ -191,6 +205,10 @@ export function cloneFlowableState(state: FlowableDocumentState): FlowableDocume
 		eventListeners: state.eventListeners.map((e) => ({ ...e })),
 		localizations: state.localizations.map((l) => ({ ...l })),
 		dataObjects: state.dataObjects.map((d) => ({ ...d })),
+		processExtensionElements: state.processExtensionElements.map((item) => ({
+			processId: item.processId,
+			preservedExtensionElements: [...item.preservedExtensionElements],
+		})),
 		elements: Object.fromEntries(
 			Object.entries(state.elements).map(([id, elementState]) => [
 				id,

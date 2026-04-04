@@ -16,6 +16,7 @@ export type HostToWebviewMessage =
 export type WebviewToHostMessage =
 	| { type: 'ready' }
 	| { type: 'save-document'; xml: string; flowableState: FlowableDocumentState }
+	| { type: 'run-validation'; xml: string; flowableState: FlowableDocumentState }
 	| { type: 'show-error'; message: string }
 	| { type: 'open-source' }
 	| { type: 'svg-export'; svg: string }

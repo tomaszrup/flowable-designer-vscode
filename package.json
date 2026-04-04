@@ -3,7 +3,7 @@
   "publisher": "TomaszRup",
   "displayName": "BPMN Designer ported from Flowable Eclipse Designer",
   "description": "VS Code BPMN editor compatible with legacy Eclipse Flowable Designer files",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "icon": "icon.png",
   "license": "MIT",
   "repository": {
@@ -91,6 +91,7 @@
         {
           "id": "flowable-bpmn-designer.processNavigator",
           "name": "Process Navigator",
+          "icon": "resources/flowable-icon.svg",
           "when": "resourceExtname == .bpmn || resourceExtname == .bpmn2"
         }
       ]
@@ -181,6 +182,10 @@
   },
   "scripts": {
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "npm run compile-web && playwright test",
+    "test:e2e:headed": "npm run compile-web && playwright test --headed",
+    "coverage:badge": "node scripts/generate-coverage-badge.mjs",
     "vscode:prepublish": "npm run package-web",
     "package:vsix": "vsce package",
     "copy-bpmn-assets": "shx mkdir -p dist/webview/bpmn-assets/bpmn-font && shx cp node_modules/bpmn-js/dist/assets/diagram-js.css dist/webview/bpmn-assets/ && shx cp -r node_modules/bpmn-js/dist/assets/bpmn-font/css dist/webview/bpmn-assets/bpmn-font/ && shx cp -r node_modules/bpmn-js/dist/assets/bpmn-font/font dist/webview/bpmn-assets/bpmn-font/ && shx cp node_modules/diagram-js-minimap/assets/diagram-js-minimap.css dist/webview/bpmn-assets/",
@@ -197,6 +202,7 @@
     "run-in-browser": "vscode-test-web --browserType=chromium --extensionDevelopmentPath=. ."
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@types/vscode": "^1.109.0",
     "@vitest/coverage-v8": "^4.1.2",
     "@vscode/test-web": "^0.0.80",

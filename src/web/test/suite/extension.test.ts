@@ -1,6 +1,11 @@
 import { describe, test, expect } from 'vitest';
+import type { Element as XmlElement } from '@xmldom/xmldom';
 
 function assertDefined<T>(val: T): asserts val is NonNullable<T> {
+	if (typeof val === 'boolean') {
+		expect(val).toBe(true);
+		return;
+	}
 	expect(val).toBeDefined();
 	expect(val).not.toBeNull();
 }
@@ -31,9 +36,24 @@ import legacyDataSignalExceptionsFixture from '../../../../fixtures/flowable/leg
 import legacySubprocessFixture from '../../../../fixtures/flowable/legacy-subprocess.bpmn?raw';
 import legacyCollapsedSubprocessFixture from '../../../../fixtures/flowable/legacy-collapsed-subprocess.bpmn?raw';
 import legacyNestedCollapsedSubprocessFixture from '../../../../fixtures/flowable/legacy-nested-collapsed-subprocess.bpmn?raw';
+import legacyMultiProcessFixture from '../../../../fixtures/flowable/legacy-multi-process.bpmn?raw';
+import lexicalPreservationFixture from '../../../../fixtures/flowable/lexical-preservation-comments.bpmn?raw';
+import lexicalManagedExtensionChildrenFixture from '../../../../fixtures/flowable/lexical-managed-extension-children.bpmn?raw';
 import { extractFlowableDocumentState, mergeFlowableDocumentXml } from '../../flowable/roundTrip';
 import { validateBpmnXml } from '../../flowable/validation';
 import { parseXmlDocument } from '../../flowable/xmlParser';
+
+function directChildElementNames(element: XmlElement): string[] {
+	return Array.from(element.childNodes)
+		.filter((node): node is XmlElement => node.nodeType === node.ELEMENT_NODE)
+		.map((node) => node.localName || node.nodeName.split(':').pop() || node.nodeName);
+}
+
+function directChildElementIds(element: XmlElement): string[] {
+	return Array.from(element.childNodes)
+		.filter((node): node is XmlElement => node.nodeType === node.ELEMENT_NODE)
+		.map((node) => node.getAttribute('id') || node.nodeName);
+}
 
 describe('Web Extension Test Suite', () => {
 
@@ -622,7 +642,8 @@ describe('Web Extension Test Suite', () => {
 		const gateway = state.elements.gateway1;
 
 		assertDefined(gateway);
-		// default is a standard BPMN attribute, preserved in preservedAttributes
+		const mergedXml = mergeFlowableDocumentXml(legacyPhase3Fixture, legacyPhase3Fixture, state);
+		expect(mergedXml).toMatch(/exclusiveGateway id="gateway1"[^>]*default="flow3"/);
 	});
 
 	// Phase 3: General round-trip preservation
@@ -691,6 +712,46 @@ describe('Web Extension Test Suite', () => {
 		expect(mergedXml).toMatch(/locale="fr"/);
 		expect(mergedXml).toMatch(/locale="es"/);
 		expect(mergedXml).toMatch(/Proceso de prueba/);
+	});
+
+	test('uses activiti documentation when adding a localization description', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:activiti="http://activiti.org/bpmn" targetNamespace="http://example.com/localization">
+  <process id="Process_1" isExecutable="true">
+    <extensionElements>
+      <activiti:localization locale="de" name="Name"/>
+    </extensionElements>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		state.localizations[0].description = 'Beschreibung';
+
+		const mergedXml = mergeFlowableDocumentXml(originalXml, originalXml, state);
+
+		expect(mergedXml).toContain('<activiti:documentation>Beschreibung</activiti:documentation>');
+		expect(mergedXml).not.toContain('<documentation>Beschreibung</documentation>');
+	});
+
+	test('normalizes legacy localization documentation to activiti documentation when edited', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:activiti="http://activiti.org/bpmn" targetNamespace="http://example.com/localization">
+  <process id="Process_1" isExecutable="true">
+    <extensionElements>
+      <activiti:localization locale="de" name="Name">
+        <documentation>Alt</documentation>
+      </activiti:localization>
+    </extensionElements>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		state.localizations[0].description = 'Neu';
+
+		const mergedXml = mergeFlowableDocumentXml(originalXml, originalXml, state);
+
+		expect(mergedXml).toContain('<activiti:documentation>Neu</activiti:documentation>');
+		expect(mergedXml).not.toContain('<documentation>Neu</documentation>');
 	});
 
 	// Phase 4: Subprocess
@@ -1368,11 +1429,11 @@ describe('Web Extension Test Suite', () => {
 	});
 
         test('parseXmlDocument rejects DOCTYPE declarations', () => {
-                expect(() => parseXmlDocument('<!DOCTYPE foo><root/>')).toThrowError('DOCTYPE declarations are not supported');
+				expect(() => parseXmlDocument('<!DOCTYPE foo><root/>')).toThrow('DOCTYPE declarations are not supported');
         });
 
         test('parseXmlDocument throws on malformed XML', () => {
-                expect(() => parseXmlDocument('<root><unclosed>')).toThrowError();
+				expect(() => parseXmlDocument('<root><unclosed>')).toThrow();
         });
 
         test('parseXmlDocument parses valid XML', () => {
@@ -1500,5 +1561,1493 @@ describe('Web Extension Test Suite', () => {
 		expect(mergedXml).toMatch(/activiti:assignee="manager"/);
 		expect(mergedXml).toMatch(/activiti:class="com.example.flowable.NewApprovalDelegate"/);
 		expect(mergedXml).toMatch(/\$\{status == "approved"\}/);
+	});
+
+	test('preserves comments and lexical order on no-op round-trip', () => {
+		const state = extractFlowableDocumentState(lexicalPreservationFixture);
+		const mergedXml = mergeFlowableDocumentXml(lexicalPreservationFixture, lexicalPreservationFixture, state);
+		const mergedDoc = parseXmlDocument(mergedXml);
+		const mergedDefinitions = mergedDoc.documentElement!;
+		const mergedProcess = mergedDefinitions.getElementsByTagName('process')[0];
+		const mergedPlane = mergedDoc.getElementsByTagName('bpmndi:BPMNPlane')[0];
+
+		expect(mergedXml).toContain('<!-- between start and review -->');
+		expect(mergedXml).toContain('<!-- extension comment -->');
+		expect(mergedXml).toContain('<!-- before diagram -->');
+		expect(directChildElementNames(mergedDefinitions)).toEqual(['signal', 'message', 'process', 'BPMNDiagram']);
+		expect(directChildElementIds(mergedProcess)).toEqual(['documentation', 'start1', 'reviewTask', 'flow1', 'end1', 'flow2']);
+		expect(directChildElementIds(mergedPlane)).toEqual([
+			'BPMNShape_start1',
+			'BPMNShape_reviewTask',
+			'BPMNShape_end1',
+			'BPMNEdge_flow1',
+			'BPMNEdge_flow2',
+		]);
+		expect(mergedXml).toMatch(/<userTask id="reviewTask" name="Review" activiti:assignee="\$\{initiator\}" activiti:formKey="reviewForm" custom:alpha="1">/);
+	});
+
+	test('preserves comments and existing order when serialized BPMN is reordered', () => {
+		const state = extractFlowableDocumentState(lexicalPreservationFixture);
+		const reorderedSerializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:activiti="http://activiti.org/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC" xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI" xmlns:custom="http://example.com/custom" targetNamespace="http://example.com/lexical">
+  <process custom:processFlag="on" isExecutable="true" name="Lexical Process" id="lexicalProcess">
+    <sequenceFlow targetRef="reviewTask" id="flow1" sourceRef="start1"/>
+    <userTask custom:alpha="1" activiti:formKey="reviewForm" activiti:assignee="\${initiator}" name="Review" id="reviewTask">
+      <documentation>Review docs</documentation>
+    </userTask>
+    <startEvent name="Start" id="start1"/>
+    <sequenceFlow targetRef="end1" id="flow2" sourceRef="reviewTask"/>
+    <endEvent name="End" id="end1"/>
+  </process>
+  <message name="Start Message" id="startMessage"/>
+  <signal name="Approval Signal" id="approvalSignal"/>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_lexicalProcess">
+    <bpmndi:BPMNPlane bpmnElement="lexicalProcess" id="BPMNPlane_lexicalProcess">
+      <bpmndi:BPMNEdge bpmnElement="flow2" id="BPMNEdge_flow2">
+        <omgdi:waypoint x="281" y="168"/>
+        <omgdi:waypoint x="341" y="168"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape bpmnElement="end1" id="BPMNShape_end1">
+        <omgdc:Bounds x="350" y="155" width="35" height="35"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="reviewTask" id="BPMNShape_reviewTask">
+        <omgdc:Bounds x="220" y="145" width="100" height="55"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge bpmnElement="flow1" id="BPMNEdge_flow1">
+        <omgdi:waypoint x="116" y="168"/>
+        <omgdi:waypoint x="221" y="168"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape bpmnElement="start1" id="BPMNShape_start1">
+        <omgdc:Bounds x="81" y="151" width="35" height="35"/>
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>`;
+
+		const mergedXml = mergeFlowableDocumentXml(reorderedSerializedXml, lexicalPreservationFixture, state);
+		const mergedDoc = parseXmlDocument(mergedXml);
+		const mergedDefinitions = mergedDoc.documentElement!;
+		const mergedProcess = mergedDefinitions.getElementsByTagName('process')[0];
+		const mergedPlane = mergedDoc.getElementsByTagName('bpmndi:BPMNPlane')[0];
+
+		expect(mergedXml).toContain('<!-- between start and review -->');
+		expect(mergedXml).toContain('<!-- extension comment -->');
+		expect(mergedXml).toContain('<!-- before diagram -->');
+		expect(directChildElementNames(mergedDefinitions)).toEqual(['signal', 'message', 'process', 'BPMNDiagram']);
+		expect(directChildElementIds(mergedProcess)).toEqual(['documentation', 'start1', 'reviewTask', 'flow1', 'end1', 'flow2']);
+		expect(directChildElementIds(mergedPlane)).toEqual([
+			'BPMNShape_start1',
+			'BPMNShape_reviewTask',
+			'BPMNShape_end1',
+			'BPMNEdge_flow1',
+			'BPMNEdge_flow2',
+		]);
+		expect(mergedXml).toMatch(/<omgdc:Bounds x="220" y="145" width="100" height="55"\/>/);
+		expect(mergedXml).toMatch(/<userTask id="reviewTask" name="Review" activiti:assignee="\$\{initiator\}" activiti:formKey="reviewForm" custom:alpha="1">/);
+	});
+
+	test('preserves comments and order while applying Flowable metadata edits', () => {
+		const state = extractFlowableDocumentState(lexicalPreservationFixture);
+		state.elements.reviewTask.activitiAttributes.assignee = 'manager';
+		state.elements.reviewTask.fieldExtensions.push({
+			id: 'field-added',
+			name: 'region',
+			valueType: 'string',
+			value: 'emea',
+		});
+
+		const mergedXml = mergeFlowableDocumentXml(lexicalPreservationFixture, lexicalPreservationFixture, state);
+		const mergedDoc = parseXmlDocument(mergedXml);
+		const mergedDefinitions = mergedDoc.documentElement!;
+		const mergedProcess = mergedDefinitions.getElementsByTagName('process')[0];
+
+		expect(mergedXml).toContain('<!-- between start and review -->');
+		expect(mergedXml).toContain('<!-- extension comment -->');
+		expect(directChildElementNames(mergedDefinitions)).toEqual(['signal', 'message', 'process', 'BPMNDiagram']);
+		expect(directChildElementIds(mergedProcess)).toEqual(['documentation', 'start1', 'reviewTask', 'flow1', 'end1', 'flow2']);
+		expect(mergedXml).toMatch(/<userTask id="reviewTask" name="Review" activiti:assignee="manager" activiti:formKey="reviewForm" custom:alpha="1">/);
+		expect(mergedXml).toMatch(/<activiti:field name="priority">/);
+		expect(mergedXml).toMatch(/<activiti:field name="region">\s*<activiti:string>emea<\/activiti:string>\s*<\/activiti:field>/);
+	});
+
+	test('persists reordered existing managed metadata collections', () => {
+		const state = extractFlowableDocumentState(legacyPhase3Fixture);
+		state.signalDefinitions = [state.signalDefinitions[1], state.signalDefinitions[0]];
+
+		const mergedXml = mergeFlowableDocumentXml(legacyPhase3Fixture, legacyPhase3Fixture, state);
+		const mergedDoc = parseXmlDocument(mergedXml);
+		const definitions = mergedDoc.documentElement!;
+		const signalIds = directChildElementIds(definitions).filter((id) => id === 'cancelSignal' || id === 'paymentSignal');
+
+		expect(signalIds).toEqual(['cancelSignal', 'paymentSignal']);
+		expect(mergedXml.indexOf('id="cancelSignal"')).toBeLessThan(mergedXml.indexOf('id="paymentSignal"'));
+	});
+
+	test('preserves document-level comments and processing instructions', () => {
+		const fixture = `<?xml version="1.0" encoding="UTF-8"?>
+<!-- top-level comment -->
+<?xml-stylesheet type="text/xsl" href="diagram.xsl"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/test">
+  <process id="Process_1" isExecutable="true"/>
+</definitions>
+<!-- trailing comment -->`;
+
+		const state = extractFlowableDocumentState(fixture);
+		const mergedXml = mergeFlowableDocumentXml(fixture, fixture, state);
+
+		expect(mergedXml).toContain('<!-- top-level comment -->');
+		expect(mergedXml).toContain('<?xml-stylesheet type="text/xsl" href="diagram.xsl"?>');
+		expect(mergedXml).toContain('<!-- trailing comment -->');
+		expect(mergedXml.indexOf('<!-- top-level comment -->')).toBeLessThan(mergedXml.indexOf('<definitions'));
+		expect(mergedXml.indexOf('<!-- trailing comment -->')).toBeGreaterThan(mergedXml.indexOf('</definitions>'));
+	});
+
+	test('preserves comments and processing instructions added by serialized BPMN', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/test">
+  <process id="Process_1" isExecutable="true">
+    <startEvent id="start1"/>
+    <endEvent id="end1"/>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<!-- top-level comment -->
+<?xml-stylesheet type="text/xsl" href="diagram.xsl"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/test">
+  <process id="Process_1" isExecutable="true">
+    <startEvent id="start1"/>
+    <!-- between start and end -->
+    <endEvent id="end1"/>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state, { origin: 'source' });
+
+		expect(mergedXml).toContain('<!-- top-level comment -->');
+		expect(mergedXml).toContain('<?xml-stylesheet type="text/xsl" href="diagram.xsl"?>');
+		expect(mergedXml).toContain('<!-- between start and end -->');
+		expect(mergedXml.indexOf('<!-- top-level comment -->')).toBeLessThan(mergedXml.indexOf('<definitions'));
+		expect(mergedXml.indexOf('<!-- between start and end -->')).toBeGreaterThan(mergedXml.indexOf('id="start1"'));
+		expect(mergedXml.indexOf('<!-- between start and end -->')).toBeLessThan(mergedXml.indexOf('id="end1"'));
+	});
+
+	test('preserves existing BPMN diagram comments in nested collapsed subprocess documents', () => {
+		const fixtureWithDiagramComments = legacyNestedCollapsedSubprocessFixture
+			.replace(
+				'  <bpmndi:BPMNDiagram id="BPMNDiagram_nestedCollapsedSubprocessProcess">',
+				'  <!-- Main process diagram: subprocess1 shown collapsed -->\n  <bpmndi:BPMNDiagram id="BPMNDiagram_nestedCollapsedSubprocessProcess">',
+			)
+			.replace(
+				'  <bpmndi:BPMNDiagram id="BPMNDiagram_subprocess1">',
+				'  <!-- Level 1: contents of subprocess1, with subprocess2 shown collapsed -->\n  <bpmndi:BPMNDiagram id="BPMNDiagram_subprocess1">',
+			)
+			.replace(
+				'  <bpmndi:BPMNDiagram id="BPMNDiagram_subprocess2">',
+				'  <!-- Level 2: contents of subprocess2 (innermost) -->\n  <bpmndi:BPMNDiagram id="BPMNDiagram_subprocess2">',
+			);
+		const state = extractFlowableDocumentState(fixtureWithDiagramComments);
+		const mergedXml = mergeFlowableDocumentXml(fixtureWithDiagramComments, fixtureWithDiagramComments, state);
+
+		expect(mergedXml).toContain('<!-- Main process diagram: subprocess1 shown collapsed -->');
+		expect(mergedXml).toContain('<!-- Level 1: contents of subprocess1, with subprocess2 shown collapsed -->');
+		expect(mergedXml).toContain('<!-- Level 2: contents of subprocess2 (innermost) -->');
+	});
+
+	test('preserves element type changes when a replaced element keeps the same id', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/type-swap">
+  <process id="Process_1" isExecutable="true">
+    <serviceTask id="task1" name="Do work"/>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/type-swap">
+  <process id="Process_1" isExecutable="true">
+    <userTask id="task1" name="Do work"/>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state, { origin: 'source' });
+
+		expect(mergedXml).toContain('<userTask id="task1" name="Do work"/>');
+		expect(mergedXml).not.toContain('<serviceTask id="task1"');
+	});
+
+	test('preserves unsupported extension children when an element type changes with the same id', () => {
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:activiti="http://activiti.org/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC" xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI" xmlns:custom="http://example.com/custom" targetNamespace="http://example.com/lexical">
+  <signal id="approvalSignal" name="Approval Signal"/>
+  <message id="startMessage" name="Start Message"/>
+  <process id="lexicalProcess" name="Lexical Process" isExecutable="true" custom:processFlag="on">
+    <documentation>Process level documentation</documentation>
+    <startEvent id="start1" name="Start"/>
+    <serviceTask id="reviewTask" name="Review"/>
+    <sequenceFlow id="flow1" sourceRef="start1" targetRef="reviewTask"/>
+    <endEvent id="end1" name="End"/>
+    <sequenceFlow id="flow2" sourceRef="reviewTask" targetRef="end1"/>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(lexicalPreservationFixture);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, lexicalPreservationFixture, state);
+
+		expect(mergedXml).toContain('<serviceTask id="reviewTask" name="Review"');
+		expect(mergedXml).toMatch(/<custom:hint code="A"(?:\s+xmlns:custom="http:\/\/example.com\/custom")?\/>/);
+	});
+
+	test('preserves new non-activiti namespaced attributes from serialized BPMN', () => {
+		const serializedXml = lexicalPreservationFixture.replace(
+			'<userTask id="reviewTask" name="Review" activiti:assignee="${initiator}" activiti:formKey="reviewForm" custom:alpha="1">',
+			'<userTask id="reviewTask" name="Review" activiti:assignee="${initiator}" activiti:formKey="reviewForm" custom:alpha="1" custom:beta="2">',
+		);
+
+		const state = extractFlowableDocumentState(lexicalPreservationFixture);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, lexicalPreservationFixture, state);
+
+		expect(mergedXml).toContain('custom:beta="2"');
+	});
+
+	test('preserves element-scoped namespace declarations for serialized prefixed attributes', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/local-scope-prefix">
+  <process id="Process_1" isExecutable="true">
+    <userTask id="task1" name="Task"/>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/local-scope-prefix">
+  <process id="Process_1" isExecutable="true">
+    <userTask id="task1" name="Task" xmlns:custom="http://example.com/custom" custom:beta="2"/>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state, { origin: 'source' });
+
+		expect(mergedXml).toContain('custom:beta="2"');
+		expect(mergedXml).toContain('xmlns:custom="http://example.com/custom"');
+		expect(() => parseXmlDocument(mergedXml)).not.toThrow();
+	});
+
+	test('preserves new unsupported activiti attributes from serialized BPMN', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:activiti="http://activiti.org/bpmn" targetNamespace="http://example.com/activiti-attr">
+  <process id="Process_1" isExecutable="true">
+    <userTask id="task1" name="Task"/>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:activiti="http://activiti.org/bpmn" targetNamespace="http://example.com/activiti-attr">
+  <process id="Process_1" isExecutable="true">
+    <userTask id="task1" name="Task" activiti:customFlag="yes"/>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state, { origin: 'source' });
+
+		expect(mergedXml).toContain('activiti:customFlag="yes"');
+		expect(() => parseXmlDocument(mergedXml)).not.toThrow();
+	});
+
+	test('preserves namespace declarations for brand-new serialized prefixes', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/new-prefix">
+  <process id="Process_1" isExecutable="true">
+    <userTask id="task1" name="Task"/>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:custom="http://example.com/custom" targetNamespace="http://example.com/new-prefix">
+  <process id="Process_1" isExecutable="true">
+    <userTask id="task1" name="Task" custom:beta="2"/>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+
+		expect(mergedXml).toContain('xmlns:custom="http://example.com/custom"');
+		expect(mergedXml).toContain('custom:beta="2"');
+		expect(() => parseXmlDocument(mergedXml)).not.toThrow();
+	});
+
+	test('replaces legacy prefixed process event listener implementations cleanly', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:activiti="http://activiti.org/bpmn" targetNamespace="http://example.com/listeners">
+  <process id="Process_1" isExecutable="true">
+    <extensionElements>
+      <activiti:eventListener events="ENTITY_CREATED" activiti:class="com.example.AuditListener"/>
+    </extensionElements>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		state.eventListeners[0].implementationType = 'delegateExpression';
+		state.eventListeners[0].implementation = '${handler}';
+
+		const mergedXml = mergeFlowableDocumentXml(originalXml, originalXml, state);
+
+		expect(mergedXml).toContain('delegateExpression="${handler}"');
+		expect(mergedXml).not.toContain('activiti:class=');
+		expect(mergedXml).not.toContain('class="com.example.AuditListener"');
+	});
+
+	test('preserves serialized signal and message definitions when state is unchanged', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/root-definitions">
+  <process id="Process_1" isExecutable="true">
+    <startEvent id="start1" name="Start"/>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/root-definitions">
+  <signal id="sig1" name="Approval Signal"/>
+  <message id="msg1" name="Review Message"/>
+  <process id="Process_1" isExecutable="true">
+    <startEvent id="start1" name="Start"/>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+
+		expect(mergedXml).toContain('<signal id="sig1" name="Approval Signal"/>');
+		expect(mergedXml).toContain('<message id="msg1" name="Review Message"/>');
+	});
+
+	test('preserves unsupported metadata when serialized signal definitions are reordered', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:custom="http://example.com/custom" targetNamespace="http://example.com/root-definitions">
+  <signal id="sigA" name="Alpha" custom:flag="one"/>
+  <signal id="sigB" name="Beta" custom:flag="two"/>
+  <process id="Process_1" isExecutable="true">
+    <startEvent id="start1" name="Start"/>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:custom="http://example.com/custom" targetNamespace="http://example.com/root-definitions">
+  <signal id="sigB" name="Beta" custom:flag="two"/>
+  <signal id="sigA" name="Alpha" custom:flag="one"/>
+  <process id="Process_1" isExecutable="true">
+    <startEvent id="start1" name="Start"/>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+
+		expect(mergedXml.indexOf('id="sigB"')).toBeLessThan(mergedXml.indexOf('id="sigA"'));
+		expect(mergedXml).toContain('<signal id="sigB" name="Beta" custom:flag="two"/>');
+		expect(mergedXml).toContain('<signal id="sigA" name="Alpha" custom:flag="one"/>');
+	});
+
+	test('preserves serialized removals of signal and message definitions when state is unchanged', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/root-definitions">
+  <signal id="sig1" name="Approval Signal"/>
+  <message id="msg1" name="Review Message"/>
+  <process id="Process_1" isExecutable="true">
+    <startEvent id="start1" name="Start"/>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/root-definitions">
+  <process id="Process_1" isExecutable="true">
+    <startEvent id="start1" name="Start"/>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+
+		expect(mergedXml).not.toContain('id="sig1"');
+		expect(mergedXml).not.toContain('id="msg1"');
+	});
+
+	test('preserves lexical content inside managed extension children on round-trip', () => {
+		const state = extractFlowableDocumentState(lexicalManagedExtensionChildrenFixture);
+		const mergedXml = mergeFlowableDocumentXml(
+			lexicalManagedExtensionChildrenFixture,
+			lexicalManagedExtensionChildrenFixture,
+			state,
+		);
+
+		expect(mergedXml).toContain('<!-- field level comment -->');
+		expect(mergedXml).toContain('<!-- trailing field comment -->');
+		expect(mergedXml).toContain('<custom:hint code="payload-json"/>');
+		expect(mergedXml).toContain('<activiti:string>{"status":"ready"}</activiti:string>');
+		expect(mergedXml).toContain('<activiti:expression>${tenantResolver.currentTenant()}</activiti:expression>');
+	});
+
+	test('preserves process-scoped metadata when a process id is renamed', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:activiti="http://activiti.org/bpmn" targetNamespace="http://example.com/process-rename">
+  <process id="mainProcess" isExecutable="true">
+    <startEvent id="mainStart"/>
+  </process>
+  <process id="secondaryProcess" isExecutable="true">
+    <extensionElements>
+      <activiti:eventListener events="ENTITY_UPDATED" delegateExpression="\${secondaryListener}" entityType="execution"/>
+      <activiti:localization locale="de" name="Sekundaerer Prozess">
+        <activiti:documentation>Sekundaere Prozessbeschreibung</activiti:documentation>
+      </activiti:localization>
+    </extensionElements>
+    <dataObject id="secondaryPayload" name="secondaryPayload" itemSubjectRef="xsd:string">
+      <extensionElements>
+        <activiti:value>secondary-value</activiti:value>
+      </extensionElements>
+    </dataObject>
+    <startEvent id="secondaryStart"/>
+  </process>
+</definitions>`;
+		const serializedXml = originalXml.replace(/secondaryProcess/g, 'secondaryProcessRenamed');
+
+		const state = extractFlowableDocumentState(originalXml);
+		assertDefined(state.elements.secondaryProcess);
+		state.elements.secondaryProcessRenamed = {
+			...state.elements.secondaryProcess,
+			id: 'secondaryProcessRenamed',
+		};
+		delete state.elements.secondaryProcess;
+
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+		const restoredState = extractFlowableDocumentState(mergedXml);
+
+		expect(mergedXml).toContain('id="secondaryProcessRenamed"');
+		expect(mergedXml).toContain('delegateExpression="${secondaryListener}"');
+		expect(mergedXml).toContain('Sekundaere Prozessbeschreibung');
+		expect(mergedXml).toContain('<dataObject id="secondaryPayload" name="secondaryPayload" itemSubjectRef="xsd:string">');
+		expect(restoredState.eventListeners.map((listener) => listener.processId)).toContain('secondaryProcessRenamed');
+		expect(restoredState.localizations.map((localization) => localization.processId)).toContain('secondaryProcessRenamed');
+		expect(restoredState.dataObjects.map((dataObject) => dataObject.processId)).toContain('secondaryProcessRenamed');
+	});
+
+	test('preserves edited process-scoped metadata when a renamed process also changes structure', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:activiti="http://activiti.org/bpmn" targetNamespace="http://example.com/process-rename-structure">
+  <process id="mainProcess" isExecutable="true">
+    <startEvent id="mainStart"/>
+  </process>
+  <process id="secondaryProcess" isExecutable="true">
+    <extensionElements>
+      <activiti:eventListener events="ENTITY_UPDATED" delegateExpression="\${secondaryListener}" entityType="execution"/>
+      <activiti:localization locale="de" name="Sekundaerer Prozess"/>
+    </extensionElements>
+    <dataObject id="secondaryPayload" name="secondaryPayload" itemSubjectRef="xsd:string"/>
+    <startEvent id="secondaryStart"/>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:activiti="http://activiti.org/bpmn" targetNamespace="http://example.com/process-rename-structure">
+  <process id="mainProcess" isExecutable="true">
+    <startEvent id="mainStart"/>
+  </process>
+  <process id="secondaryProcessRenamed" isExecutable="true">
+    <serviceTask id="replacementTask"/>
+    <startEvent id="secondaryStart"/>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		assertDefined(state.elements.secondaryProcess);
+		state.elements.secondaryProcessRenamed = {
+			...state.elements.secondaryProcess,
+			id: 'secondaryProcessRenamed',
+		};
+		delete state.elements.secondaryProcess;
+		state.eventListeners[0].implementation = '${editedListener}';
+		state.localizations[0].name = 'Sekundaerer Prozess Bearbeitet';
+		state.dataObjects[0].name = 'secondaryPayloadEdited';
+
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+		const restoredState = extractFlowableDocumentState(mergedXml);
+
+		expect(mergedXml).toContain('id="secondaryProcessRenamed"');
+		expect(mergedXml).toContain('delegateExpression="${editedListener}"');
+		expect(mergedXml).toContain('Sekundaerer Prozess Bearbeitet');
+		expect(mergedXml).toContain('<dataObject id="secondaryPayload" name="secondaryPayloadEdited" itemSubjectRef="xsd:string"/>');
+		expect(mergedXml).toContain('<serviceTask id="replacementTask"/>');
+		expect(restoredState.eventListeners).toEqual([
+			expect.objectContaining({
+				processId: 'secondaryProcessRenamed',
+				implementation: '${editedListener}',
+			}),
+		]);
+		expect(restoredState.localizations).toEqual([
+			expect.objectContaining({
+				processId: 'secondaryProcessRenamed',
+				name: 'Sekundaerer Prozess Bearbeitet',
+			}),
+		]);
+		expect(restoredState.dataObjects).toEqual([
+			expect.objectContaining({
+				processId: 'secondaryProcessRenamed',
+				name: 'secondaryPayloadEdited',
+			}),
+		]);
+	});
+
+	test('does not remap deleted process metadata onto an unrelated replacement process', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:activiti="http://activiti.org/bpmn" targetNamespace="http://example.com/process-replacement">
+  <process id="legacyProcess" isExecutable="true">
+    <extensionElements>
+      <activiti:eventListener events="ENTITY_UPDATED" delegateExpression="\${legacyListener}"/>
+      <activiti:localization locale="en" name="Legacy Process"/>
+    </extensionElements>
+    <dataObject id="legacyPayload" name="Legacy Payload" itemSubjectRef="xsd:string"/>
+    <startEvent id="legacyStart"/>
+  </process>
+  <process id="stableProcess" isExecutable="true">
+    <startEvent id="stableStart"/>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:activiti="http://activiti.org/bpmn" targetNamespace="http://example.com/process-replacement">
+  <process id="replacementProcess" isExecutable="true">
+    <serviceTask id="replacementTask"/>
+  </process>
+  <process id="stableProcess" isExecutable="true">
+    <startEvent id="stableStart"/>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+		const restoredState = extractFlowableDocumentState(mergedXml);
+
+		expect(mergedXml).toContain('id="replacementProcess"');
+		expect(mergedXml).not.toContain('${legacyListener}');
+		expect(mergedXml).not.toContain('Legacy Process');
+		expect(mergedXml).not.toContain('id="legacyPayload"');
+		expect(restoredState.eventListeners).toHaveLength(0);
+		expect(restoredState.localizations).toHaveLength(0);
+		expect(restoredState.dataObjects).toHaveLength(0);
+	});
+
+	test('preserves process-scoped metadata edits when a renamed process survives a count change', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:activiti="http://activiti.org/bpmn" targetNamespace="http://example.com/process-rename-count-change">
+  <process id="legacyProcess" isExecutable="true">
+    <extensionElements>
+      <activiti:eventListener events="ENTITY_UPDATED" delegateExpression="\${legacyListener}"/>
+      <activiti:localization locale="en" name="Legacy Process"/>
+    </extensionElements>
+    <dataObject id="legacyPayload" name="Legacy Payload" itemSubjectRef="xsd:string"/>
+    <startEvent id="legacyStart"/>
+  </process>
+  <process id="removedProcess" isExecutable="true">
+    <startEvent id="removedStart"/>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:activiti="http://activiti.org/bpmn" targetNamespace="http://example.com/process-rename-count-change">
+  <process id="renamedProcess" isExecutable="true">
+    <startEvent id="legacyStart"/>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		state.eventListeners[0].implementation = '${editedListener}';
+		state.localizations[0].name = 'Renamed Process';
+		state.dataObjects[0].name = 'legacyPayloadEdited';
+
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+		const restoredState = extractFlowableDocumentState(mergedXml);
+
+		expect(mergedXml).toContain('id="renamedProcess"');
+		expect(mergedXml).toContain('delegateExpression="${editedListener}"');
+		expect(mergedXml).toContain('name="Renamed Process"');
+		expect(mergedXml).toContain('<dataObject id="legacyPayload" name="legacyPayloadEdited" itemSubjectRef="xsd:string"/>');
+		expect(restoredState.eventListeners).toEqual([
+			expect.objectContaining({
+				processId: 'renamedProcess',
+				implementation: '${editedListener}',
+			}),
+		]);
+		expect(restoredState.localizations).toEqual([
+			expect.objectContaining({
+				processId: 'renamedProcess',
+				name: 'Renamed Process',
+			}),
+		]);
+		expect(restoredState.dataObjects).toEqual([
+			expect.objectContaining({
+				processId: 'renamedProcess',
+				name: 'legacyPayloadEdited',
+			}),
+		]);
+	});
+
+	test('preserves serialized process-scoped listener and localization edits when state is unchanged', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:activiti="http://activiti.org/bpmn" targetNamespace="http://example.com/process-scoped-serialized">
+  <process id="Process_1" isExecutable="true">
+    <extensionElements>
+      <activiti:eventListener events="ENTITY_CREATED" class="com.example.ListenerA"/>
+      <activiti:localization locale="en" name="Old Name"/>
+    </extensionElements>
+    <startEvent id="start1"/>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:activiti="http://activiti.org/bpmn" targetNamespace="http://example.com/process-scoped-serialized">
+  <process id="Process_1" isExecutable="true">
+    <extensionElements>
+      <activiti:eventListener events="ENTITY_UPDATED" class="com.example.ListenerB"/>
+      <activiti:localization locale="en" name="New Name"/>
+    </extensionElements>
+    <startEvent id="start1"/>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+
+		expect(mergedXml).toContain('events="ENTITY_UPDATED"');
+		expect(mergedXml).toContain('class="com.example.ListenerB"');
+		expect(mergedXml).toContain('<activiti:localization locale="en" name="New Name"/>');
+	});
+
+	test('does not duplicate a process-scoped listener when serialized and sidebar edits overlap', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:activiti="http://activiti.org/bpmn" targetNamespace="http://example.com/process-listener-overlap">
+  <process id="Process_1" isExecutable="true">
+    <extensionElements>
+      <activiti:eventListener events="ENTITY_UPDATED" class="com.example.ListenerA"/>
+    </extensionElements>
+    <startEvent id="start1"/>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:activiti="http://activiti.org/bpmn" targetNamespace="http://example.com/process-listener-overlap">
+  <process id="Process_1" isExecutable="true">
+    <extensionElements>
+      <activiti:eventListener events="ENTITY_UPDATED" class="com.example.ListenerB" entityType="execution"/>
+    </extensionElements>
+    <startEvent id="start1"/>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		state.eventListeners[0].implementation = '${editedListener}';
+
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+		const restoredState = extractFlowableDocumentState(mergedXml);
+
+		expect(mergedXml.match(/<activiti:eventListener\b/g)?.length).toBe(1);
+		expect(restoredState.eventListeners).toEqual([
+			expect.objectContaining({
+				processId: 'Process_1',
+				events: 'ENTITY_UPDATED',
+				implementation: '${editedListener}',
+				entityType: 'execution',
+			}),
+		]);
+	});
+
+	test('keeps edited data objects when a serialized process id is renamed', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/renamed-data-object">
+  <process id="Process_1" isExecutable="true">
+    <dataObject id="data1" name="Old Name" itemSubjectRef="xsd:string"/>
+    <startEvent id="start1"/>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/renamed-data-object">
+  <process id="Process_2" isExecutable="true">
+    <dataObject id="data1" name="Old Name" itemSubjectRef="xsd:string"/>
+    <startEvent id="start1"/>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		state.dataObjects[0].name = 'Edited Name';
+
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+		const restoredState = extractFlowableDocumentState(mergedXml);
+
+		expect(mergedXml).toContain('<process id="Process_2" isExecutable="true">');
+		expect(mergedXml).toContain('<dataObject id="data1" name="Edited Name" itemSubjectRef="xsd:string"/>');
+		expect(restoredState.dataObjects).toEqual([
+			expect.objectContaining({
+				processId: 'Process_2',
+				id: 'data1',
+				name: 'Edited Name',
+			}),
+		]);
+	});
+
+	test('preserves service task metadata when a serialized element id is renamed', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:activiti="http://activiti.org/bpmn" targetNamespace="http://example.com/element-rename">
+  <process id="Process_1" isExecutable="true">
+    <serviceTask id="task1" name="Call service" activiti:class="com.example.OriginalDelegate">
+      <extensionElements>
+        <activiti:field name="tenantId">
+          <activiti:string>acme</activiti:string>
+        </activiti:field>
+      </extensionElements>
+    </serviceTask>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:activiti="http://activiti.org/bpmn" targetNamespace="http://example.com/element-rename">
+  <process id="Process_1" isExecutable="true">
+    <serviceTask id="task2" name="Call service"/>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+		const restoredState = extractFlowableDocumentState(mergedXml);
+
+		expect(mergedXml).toContain('<serviceTask id="task2" name="Call service" activiti:class="com.example.OriginalDelegate">');
+		expect(mergedXml).toContain('<activiti:field name="tenantId">');
+		expect(restoredState.elements.task2.activitiAttributes.class).toBe('com.example.OriginalDelegate');
+		expect(restoredState.elements.task2.fieldExtensions).toEqual([
+			expect.objectContaining({
+				name: 'tenantId',
+				value: 'acme',
+			}),
+		]);
+		expect(restoredState.elements.task1).toBeUndefined();
+	});
+
+	test('inserts new data objects after process metadata nodes', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:activiti="http://activiti.org/bpmn" targetNamespace="http://example.com/data-order">
+  <process id="Process_1" isExecutable="true">
+    <extensionElements>
+      <activiti:localization locale="en" name="Process"/>
+    </extensionElements>
+    <startEvent id="start1"/>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		state.dataObjects.push({
+			id: 'data1',
+			processId: 'Process_1',
+			name: 'Payload',
+			itemSubjectRef: 'xsd:string',
+			defaultValue: '',
+		});
+
+		const mergedXml = mergeFlowableDocumentXml(originalXml, originalXml, state);
+		const mergedDoc = parseXmlDocument(mergedXml);
+		const processElement = mergedDoc.getElementsByTagName('process')[0];
+
+		assertDefined(processElement);
+		expect(directChildElementNames(processElement).slice(0, 3)).toEqual([
+			'extensionElements',
+			'dataObject',
+			'startEvent',
+		]);
+	});
+
+	test('keeps lexical payload attached to duplicate managed nodes after reorder', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:activiti="http://activiti.org/bpmn" xmlns:custom="http://example.com/custom" targetNamespace="http://example.com/duplicate-managed">
+  <process id="Process_1" isExecutable="true">
+    <serviceTask id="task1" name="Task">
+      <extensionElements>
+        <activiti:field name="config">
+          <!-- first -->
+          <activiti:string>A</activiti:string>
+          <custom:hint code="first"/>
+        </activiti:field>
+        <activiti:field name="config">
+          <!-- second -->
+          <activiti:string>B</activiti:string>
+          <custom:hint code="second"/>
+        </activiti:field>
+      </extensionElements>
+    </serviceTask>
+  </process>
+		</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const serviceTask = state.elements.task1;
+		assertDefined(serviceTask);
+		serviceTask.fieldExtensions = [serviceTask.fieldExtensions[1], serviceTask.fieldExtensions[0]];
+
+		const mergedXml = mergeFlowableDocumentXml(originalXml, originalXml, state);
+
+		expect(mergedXml).toMatch(/<activiti:field name="config">\s*<!-- second -->\s*<activiti:string>B<\/activiti:string>\s*<custom:hint code="second"\/>\s*<\/activiti:field>/);
+		expect(mergedXml).toMatch(/<activiti:field name="config">\s*<!-- first -->\s*<activiti:string>A<\/activiti:string>\s*<custom:hint code="first"\/>\s*<\/activiti:field>/);
+		expect(mergedXml.indexOf('<!-- second -->')).toBeLessThan(mergedXml.indexOf('<!-- first -->'));
+	});
+
+	test('extracts and round-trips multi-process BPMN fixtures', () => {
+		const state = extractFlowableDocumentState(legacyMultiProcessFixture);
+
+		assertDefined(state.elements.mainProcess);
+		assertDefined(state.elements.secondaryProcess);
+		expect(state.elements.reviewTask.activitiAttributes.assignee).toBe('kermit');
+		expect(state.elements.notifyTask.activitiAttributes.class).toBe('com.example.flowable.NotifyDelegate');
+		expect(state.elements.notifyTask.fieldExtensions[0]?.name).toBe('channel');
+		expect(state.eventListeners.map((listener) => `${listener.processId}:${listener.events}:${listener.implementation}`)).toEqual([
+			'mainProcess:TASK_CREATED:com.example.flowable.MainAuditListener',
+			'secondaryProcess:ENTITY_UPDATED:${secondaryListener}',
+		]);
+		expect(state.localizations.map((localization) => `${localization.processId}:${localization.locale}:${localization.name}`)).toEqual([
+			'mainProcess:en:Main Process',
+			'secondaryProcess:de:Sekundaerer Prozess',
+		]);
+		expect(state.dataObjects.map((dataObject) => `${dataObject.processId}:${dataObject.id}:${dataObject.defaultValue}`)).toEqual([
+			'mainProcess:mainPayload:main-value',
+			'secondaryProcess:secondaryPayload:secondary-value',
+		]);
+
+		const mergedXml = mergeFlowableDocumentXml(legacyMultiProcessFixture, legacyMultiProcessFixture, state);
+		const mergedDoc = parseXmlDocument(mergedXml);
+		const mergedDefinitions = mergedDoc.documentElement!;
+		const restoredState = extractFlowableDocumentState(mergedXml);
+		expect(directChildElementIds(mergedDefinitions).filter((id) => id === 'mainProcess' || id === 'secondaryProcess')).toEqual([
+			'mainProcess',
+			'secondaryProcess',
+		]);
+		expect(mergedXml).toContain('<bpmndi:BPMNDiagram id="BPMNDiagram_mainProcess">');
+		expect(mergedXml).toContain('<bpmndi:BPMNDiagram id="BPMNDiagram_secondaryProcess">');
+		expect(mergedXml).toContain('activiti:assignee="kermit"');
+		expect(mergedXml).toContain('activiti:class="com.example.flowable.NotifyDelegate"');
+		expect(mergedXml).toContain('class="com.example.flowable.MainAuditListener"');
+		expect(mergedXml).toContain('delegateExpression="${secondaryListener}"');
+		expect(mergedXml).toContain('Main process localization');
+		expect(mergedXml).toContain('Sekundaere Prozessbeschreibung');
+		expect(restoredState.eventListeners.map((listener) => `${listener.processId}:${listener.events}:${listener.implementation}`)).toEqual([
+			'mainProcess:TASK_CREATED:com.example.flowable.MainAuditListener',
+			'secondaryProcess:ENTITY_UPDATED:${secondaryListener}',
+		]);
+		expect(restoredState.dataObjects.map((dataObject) => `${dataObject.processId}:${dataObject.id}:${dataObject.defaultValue}`)).toEqual([
+			'mainProcess:mainPayload:main-value',
+			'secondaryProcess:secondaryPayload:secondary-value',
+		]);
+	});
+
+	test('preserves newly added signal event definitions from serialized BPMN', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:activiti="http://activiti.org/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" targetNamespace="http://example.com/signal-event">
+  <signal id="sig1" name="Approval Signal"/>
+  <process id="Process_1" isExecutable="true">
+    <startEvent id="start1" name="Start"/>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:activiti="http://activiti.org/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" targetNamespace="http://example.com/signal-event">
+  <signal id="sig1" name="Approval Signal"/>
+  <process id="Process_1" isExecutable="true">
+    <startEvent id="start1" name="Start">
+      <signalEventDefinition signalRef="sig1"/>
+    </startEvent>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		state.elements.start1.signalRef = 'sig1';
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+
+		expect(mergedXml).toContain('<signalEventDefinition signalRef="sig1"/>');
+	});
+
+	test('preserves serialized data object additions when state is unchanged', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/data-object">
+  <process id="Process_1" isExecutable="true">
+    <startEvent id="start1" name="Start"/>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/data-object">
+  <process id="Process_1" isExecutable="true">
+    <dataObject id="data1" name="Payload" itemSubjectRef="xsd:string"/>
+    <startEvent id="start1" name="Start"/>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+
+		expect(mergedXml).toContain('<dataObject id="data1" name="Payload" itemSubjectRef="xsd:string"/>');
+	});
+
+	test('preserves serialized data object removals when state is unchanged', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/data-object">
+  <process id="Process_1" isExecutable="true">
+    <dataObject id="data1" name="Payload" itemSubjectRef="xsd:string"/>
+    <startEvent id="start1" name="Start"/>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/data-object">
+  <process id="Process_1" isExecutable="true">
+    <startEvent id="start1" name="Start"/>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+
+		expect(mergedXml).not.toContain('id="data1"');
+	});
+
+	test('preserves new unsupported extension children from serialized BPMN', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:custom="http://example.com/custom" targetNamespace="http://example.com/custom-extension">
+  <process id="Process_1" isExecutable="true">
+    <serviceTask id="task1" name="Task"/>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:custom="http://example.com/custom" targetNamespace="http://example.com/custom-extension">
+  <process id="Process_1" isExecutable="true">
+    <serviceTask id="task1" name="Task">
+      <extensionElements>
+        <custom:added flag="yes"/>
+      </extensionElements>
+    </serviceTask>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+
+		expect(mergedXml).toMatch(/<custom:added flag="yes"(?:\s+xmlns:custom="http:\/\/example.com\/custom")?\/>/);
+	});
+
+	test('preserves new unsupported process extension children from serialized BPMN', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:custom="http://example.com/custom" targetNamespace="http://example.com/custom-extension">
+	<process id="Process_1" isExecutable="true">
+		<startEvent id="start1" name="Start"/>
+	</process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:custom="http://example.com/custom" targetNamespace="http://example.com/custom-extension">
+	<process id="Process_1" isExecutable="true">
+		<extensionElements>
+			<custom:added flag="yes"/>
+		</extensionElements>
+		<startEvent id="start1" name="Start"/>
+	</process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+
+		expect(mergedXml).toMatch(/<custom:added flag="yes"(?:\s+xmlns:custom="http:\/\/example.com\/custom")?\/>/);
+	});
+
+	test('replaces edited unsupported process extension children from serialized BPMN', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:custom="http://example.com/custom" xmlns:activiti="http://activiti.org/bpmn" targetNamespace="http://example.com/custom-extension">
+	<process id="Process_1" isExecutable="true">
+		<extensionElements>
+			<activiti:eventListener events="PROCESS_COMPLETED" class="com.example.Listener"/>
+			<custom:added flag="old"/>
+		</extensionElements>
+		<startEvent id="start1" name="Start"/>
+	</process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:custom="http://example.com/custom" xmlns:activiti="http://activiti.org/bpmn" targetNamespace="http://example.com/custom-extension">
+	<process id="Process_1" isExecutable="true">
+		<extensionElements>
+			<activiti:eventListener events="PROCESS_COMPLETED" class="com.example.Listener"/>
+			<custom:added flag="new"/>
+		</extensionElements>
+		<startEvent id="start1" name="Start"/>
+	</process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+
+		expect(mergedXml).toContain('<activiti:eventListener events="PROCESS_COMPLETED" class="com.example.Listener"/>');
+		expect(mergedXml).toMatch(/<custom:added flag="new"(?:\s+xmlns:custom="http:\/\/example.com\/custom")?\/>/);
+		expect(mergedXml).not.toContain('flag="old"');
+		expect(mergedXml.match(/<custom:added\b/g)?.length).toBe(1);
+	});
+
+	test('preserves serialized removals of unsupported process extension children', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:custom="http://example.com/custom" xmlns:activiti="http://activiti.org/bpmn" targetNamespace="http://example.com/custom-extension">
+	<process id="Process_1" isExecutable="true">
+		<extensionElements>
+			<activiti:eventListener events="PROCESS_COMPLETED" class="com.example.Listener"/>
+			<custom:first code="A"/>
+			<custom:second code="B"/>
+		</extensionElements>
+		<startEvent id="start1" name="Start"/>
+	</process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:custom="http://example.com/custom" xmlns:activiti="http://activiti.org/bpmn" targetNamespace="http://example.com/custom-extension">
+	<process id="Process_1" isExecutable="true">
+		<extensionElements>
+			<activiti:eventListener events="PROCESS_COMPLETED" class="com.example.Listener"/>
+			<custom:second code="B"/>
+		</extensionElements>
+		<startEvent id="start1" name="Start"/>
+	</process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+
+		expect(mergedXml).toContain('<activiti:eventListener events="PROCESS_COMPLETED" class="com.example.Listener"/>');
+		expect(mergedXml).not.toContain('<custom:first code="A"');
+		expect(mergedXml.match(/<custom:second\b/g)?.length).toBe(1);
+	});
+
+	test('preserves removal of the last unsupported process extension child', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:custom="http://example.com/custom" xmlns:activiti="http://activiti.org/bpmn" targetNamespace="http://example.com/custom-extension">
+	<process id="Process_1" isExecutable="true">
+		<extensionElements>
+			<activiti:eventListener events="PROCESS_COMPLETED" class="com.example.Listener"/>
+			<custom:only code="A"/>
+		</extensionElements>
+		<startEvent id="start1" name="Start"/>
+	</process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:custom="http://example.com/custom" xmlns:activiti="http://activiti.org/bpmn" targetNamespace="http://example.com/custom-extension">
+	<process id="Process_1" isExecutable="true">
+		<extensionElements>
+			<activiti:eventListener events="PROCESS_COMPLETED" class="com.example.Listener"/>
+		</extensionElements>
+		<startEvent id="start1" name="Start"/>
+	</process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+
+		expect(mergedXml).not.toContain('<custom:only code="A"');
+		expect(mergedXml).toContain('<activiti:eventListener events="PROCESS_COMPLETED" class="com.example.Listener"/>');
+	});
+
+	test('honors source-authored removal of the last unsupported process extension child when the container disappears', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:custom="http://example.com/custom" targetNamespace="http://example.com/custom-extension">
+	<process id="Process_1" isExecutable="true">
+		<extensionElements>
+			<custom:only code="A"/>
+		</extensionElements>
+		<startEvent id="start1" name="Start"/>
+	</process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:custom="http://example.com/custom" targetNamespace="http://example.com/custom-extension">
+	<process id="Process_1" isExecutable="true">
+		<startEvent id="start1" name="Start"/>
+	</process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state, { origin: 'source' });
+
+		expect(mergedXml).not.toContain('<custom:only code="A"');
+		expect(mergedXml).not.toContain('<extensionElements>');
+	});
+
+	test('replaces edited unsupported extension children from serialized BPMN', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:custom="http://example.com/custom" targetNamespace="http://example.com/custom-extension">
+  <process id="Process_1" isExecutable="true">
+    <serviceTask id="task1" name="Task">
+      <extensionElements>
+        <custom:added flag="old"/>
+      </extensionElements>
+    </serviceTask>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:custom="http://example.com/custom" targetNamespace="http://example.com/custom-extension">
+  <process id="Process_1" isExecutable="true">
+    <serviceTask id="task1" name="Task">
+      <extensionElements>
+        <custom:added flag="new"/>
+      </extensionElements>
+    </serviceTask>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+
+		expect(mergedXml).toMatch(/<custom:added flag="new"(?:\s+xmlns:custom="http:\/\/example.com\/custom")?\/>/);
+		expect(mergedXml).not.toContain('flag="old"');
+		expect(mergedXml.match(/<custom:added\b/g)?.length).toBe(1);
+	});
+
+	test('preserves serialized removals of unsupported extension children', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:custom="http://example.com/custom" targetNamespace="http://example.com/custom-extension">
+  <process id="Process_1" isExecutable="true">
+    <serviceTask id="task1" name="Task">
+      <extensionElements>
+        <custom:first code="A"/>
+        <custom:second code="B"/>
+      </extensionElements>
+    </serviceTask>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:custom="http://example.com/custom" targetNamespace="http://example.com/custom-extension">
+  <process id="Process_1" isExecutable="true">
+    <serviceTask id="task1" name="Task">
+      <extensionElements>
+        <custom:second code="B"/>
+      </extensionElements>
+    </serviceTask>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+
+		expect(mergedXml).not.toContain('<custom:first code="A"');
+		expect(mergedXml.match(/<custom:second\b/g)?.length).toBe(1);
+	});
+
+	test('preserves removal of the last unsupported extension child', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:custom="http://example.com/custom" xmlns:activiti="http://activiti.org/bpmn" targetNamespace="http://example.com/custom-extension">
+  <process id="Process_1" isExecutable="true">
+    <serviceTask id="task1" name="Task">
+      <extensionElements>
+				<activiti:field name="endpoint">
+					<activiti:string>https://example.com</activiti:string>
+				</activiti:field>
+        <custom:only code="A"/>
+      </extensionElements>
+    </serviceTask>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:custom="http://example.com/custom" xmlns:activiti="http://activiti.org/bpmn" targetNamespace="http://example.com/custom-extension">
+  <process id="Process_1" isExecutable="true">
+		<serviceTask id="task1" name="Task">
+			<extensionElements>
+				<activiti:field name="endpoint">
+					<activiti:string>https://example.com</activiti:string>
+				</activiti:field>
+			</extensionElements>
+		</serviceTask>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+
+		expect(mergedXml).not.toContain('<custom:only code="A"');
+		expect(mergedXml).toContain('<activiti:field name="endpoint">');
+	});
+
+	test('honors source-authored removal of the last unsupported extension child when the container disappears', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:custom="http://example.com/custom" targetNamespace="http://example.com/custom-extension">
+  <process id="Process_1" isExecutable="true">
+    <serviceTask id="task1" name="Task">
+      <extensionElements>
+        <custom:only code="A"/>
+      </extensionElements>
+    </serviceTask>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:custom="http://example.com/custom" targetNamespace="http://example.com/custom-extension">
+  <process id="Process_1" isExecutable="true">
+    <serviceTask id="task1" name="Task"/>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state, { origin: 'source' });
+
+		expect(mergedXml).not.toContain('<custom:only code="A"');
+		expect(mergedXml).not.toContain('<extensionElements>');
+	});
+
+	test('preserves serialized data object removals while keeping sidebar edits', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/data-object">
+  <process id="Process_1" isExecutable="true">
+    <dataObject id="data1" name="Payload A" itemSubjectRef="xsd:string"/>
+    <dataObject id="data2" name="Payload B" itemSubjectRef="xsd:string"/>
+    <startEvent id="start1" name="Start"/>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/data-object">
+  <process id="Process_1" isExecutable="true">
+    <dataObject id="data2" name="Payload B" itemSubjectRef="xsd:string"/>
+    <startEvent id="start1" name="Start"/>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		state.dataObjects[1].name = 'Payload B Updated';
+
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+
+		expect(mergedXml).not.toContain('id="data1"');
+		expect(mergedXml).toContain('<dataObject id="data2" name="Payload B Updated" itemSubjectRef="xsd:string"/>');
+	});
+
+	test('preserves serialized signal ordering while applying sidebar edits', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/root-definitions">
+  <signal id="sigA" name="Alpha"/>
+  <signal id="sigB" name="Beta"/>
+  <process id="Process_1" isExecutable="true">
+    <startEvent id="start1" name="Start"/>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/root-definitions">
+  <signal id="sigB" name="Beta"/>
+  <signal id="sigA" name="Alpha"/>
+  <process id="Process_1" isExecutable="true">
+    <startEvent id="start1" name="Start"/>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		state.signalDefinitions[0].name = 'Alpha Updated';
+
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+
+		expect(mergedXml.indexOf('id="sigB"')).toBeLessThan(mergedXml.indexOf('id="sigA"'));
+		expect(mergedXml).toContain('<signal id="sigA" name="Alpha Updated"/>');
+	});
+
+	test('preserves mixed inline documentation content around comments and cdata', () => {
+		const fixture = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/mixed-content">
+  <process id="Process_1" isExecutable="true">
+    <documentation>alpha<!-- mid --><![CDATA[<beta>]]>gamma</documentation>
+  </process>
+</definitions>`;
+
+		const mergedXml = mergeFlowableDocumentXml(fixture, fixture, extractFlowableDocumentState(fixture));
+		const mergedDoc = parseXmlDocument(mergedXml);
+		const documentation = mergedDoc.getElementsByTagName('documentation')[0];
+
+		expect(mergedXml).toContain('<documentation>alpha<!-- mid --><![CDATA[<beta>]]>gamma</documentation>');
+		expect(documentation?.textContent).toBe('alpha<beta>gamma');
+	});
+
+	test('preserves serialized documentation additions when sidebar state is unchanged', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/doc">
+  <process id="Process_1" isExecutable="true">
+    <startEvent id="start1"/>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/doc">
+  <process id="Process_1" isExecutable="true">
+    <documentation>Added docs</documentation>
+    <startEvent id="start1"/>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+
+		expect(mergedXml).toContain('<documentation>Added docs</documentation>');
+	});
+
+	test('preserves serialized condition expression additions when sidebar state is unchanged', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" targetNamespace="http://example.com/condition">
+  <process id="Process_1" isExecutable="true">
+    <startEvent id="start1"/>
+    <sequenceFlow id="flow1" sourceRef="start1" targetRef="end1"/>
+    <endEvent id="end1"/>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" targetNamespace="http://example.com/condition">
+  <process id="Process_1" isExecutable="true">
+    <startEvent id="start1"/>
+    <sequenceFlow id="flow1" sourceRef="start1" targetRef="end1">
+      <conditionExpression xsi:type="tFormalExpression">\${approved}</conditionExpression>
+    </sequenceFlow>
+    <endEvent id="end1"/>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+
+		expect(mergedXml).toContain('<conditionExpression xsi:type="tFormalExpression">${approved}</conditionExpression>');
+	});
+
+	test('preserves serialized condition expression removals when sidebar state is unchanged', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" targetNamespace="http://example.com/condition">
+  <process id="Process_1" isExecutable="true">
+    <startEvent id="start1"/>
+    <sequenceFlow id="flow1" sourceRef="start1" targetRef="end1">
+      <conditionExpression xsi:type="tFormalExpression">\${approved}</conditionExpression>
+    </sequenceFlow>
+    <endEvent id="end1"/>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" targetNamespace="http://example.com/condition">
+  <process id="Process_1" isExecutable="true">
+    <startEvent id="start1"/>
+    <sequenceFlow id="flow1" sourceRef="start1" targetRef="end1"/>
+    <endEvent id="end1"/>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+
+		expect(mergedXml).not.toContain('<conditionExpression');
+	});
+
+	test('preserves serialized multi-instance removals when sidebar state is unchanged', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:activiti="http://activiti.org/bpmn" targetNamespace="http://example.com/multi-instance">
+  <process id="Process_1" isExecutable="true">
+    <userTask id="task1" name="Review">
+      <multiInstanceLoopCharacteristics isSequential="true" activiti:collection="\${reviewers}" activiti:elementVariable="reviewer">
+        <loopCardinality>3</loopCardinality>
+      </multiInstanceLoopCharacteristics>
+    </userTask>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:activiti="http://activiti.org/bpmn" targetNamespace="http://example.com/multi-instance">
+  <process id="Process_1" isExecutable="true">
+    <userTask id="task1" name="Review"/>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+		const restoredState = extractFlowableDocumentState(mergedXml);
+
+		expect(mergedXml).not.toContain('<multiInstanceLoopCharacteristics');
+		expect(restoredState.elements.task1.multiInstance).toBeNull();
+	});
+
+	test('removes stale comments and processing instructions that disappeared from serialized BPMN', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="diagram-old.xsl"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/comments">
+  <process id="Process_1" isExecutable="true">
+    <startEvent id="start1"/>
+    <!-- old between -->
+    <endEvent id="end1"/>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="diagram-new.xsl"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/comments">
+  <process id="Process_1" isExecutable="true">
+    <startEvent id="start1"/>
+    <!-- new between -->
+    <endEvent id="end1"/>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state, { origin: 'source' });
+
+		expect(mergedXml).toContain('<!-- new between -->');
+		expect(mergedXml).not.toContain('<!-- old between -->');
+		expect(mergedXml).toContain('<?xml-stylesheet type="text/xsl" href="diagram-new.xsl"?>');
+		expect(mergedXml).not.toContain('<?xml-stylesheet type="text/xsl" href="diagram-old.xsl"?>');
+		expect(mergedXml.match(/<!-- new between -->/g)?.length).toBe(1);
+	});
+
+	test('removes the last lexical node when serialized BPMN no longer has any', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/comments">
+  <process id="Process_1" isExecutable="true">
+    <startEvent id="start1"/>
+    <!-- stale comment -->
+    <endEvent id="end1"/>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/comments">
+  <process id="Process_1" isExecutable="true">
+    <startEvent id="start1"/>
+    <endEvent id="end1"/>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state, { origin: 'source' });
+
+		expect(mergedXml).not.toContain('stale comment');
+	});
+
+	test('preserves newly added timer event definitions from serialized BPMN', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/timer-event">
+  <process id="Process_1" isExecutable="true">
+    <startEvent id="start1" name="Start"/>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/timer-event">
+  <process id="Process_1" isExecutable="true">
+    <startEvent id="start1" name="Start">
+      <timerEventDefinition>
+        <timeDuration>PT5M</timeDuration>
+      </timerEventDefinition>
+    </startEvent>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+		const restoredState = extractFlowableDocumentState(mergedXml);
+
+		expect(mergedXml).toContain('<timerEventDefinition>');
+		expect(mergedXml).toContain('<timeDuration>PT5M</timeDuration>');
+		expect(restoredState.elements.start1.timerDefinition).toEqual({ type: 'timeDuration', value: 'PT5M' });
+	});
+
+	test('preserves serialized timer event removals when sidebar state is unchanged', () => {
+		const originalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/timer-event">
+  <process id="Process_1" isExecutable="true">
+    <startEvent id="start1" name="Start">
+      <timerEventDefinition>
+        <timeDuration>PT5M</timeDuration>
+      </timerEventDefinition>
+    </startEvent>
+  </process>
+</definitions>`;
+		const serializedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://example.com/timer-event">
+  <process id="Process_1" isExecutable="true">
+    <startEvent id="start1" name="Start"/>
+  </process>
+</definitions>`;
+
+		const state = extractFlowableDocumentState(originalXml);
+		const mergedXml = mergeFlowableDocumentXml(serializedXml, originalXml, state);
+		const restoredState = extractFlowableDocumentState(mergedXml);
+
+		expect(mergedXml).not.toContain('<timerEventDefinition>');
+		expect(restoredState.elements.start1.timerDefinition).toBeNull();
 	});
 });

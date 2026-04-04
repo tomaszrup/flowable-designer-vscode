@@ -13,7 +13,7 @@
           <documentation>Review and approve the request.</documentation>
         </userTask>
         <sequenceFlow id="innerflow2" sourceRef="usertask1" targetRef="servicetask1"/>
-        <serviceTask id="servicetask1" name="Process Review" activiti:class="com.example.flowable.ReviewDelegate"/>
+        <serviceTask id="servicetask1" name="Process Review" activiti:class="com.example.flowable.ReviewDelegate" activiti:exclusive="false"/>
         <sequenceFlow id="innerflow3" sourceRef="servicetask1" targetRef="subendevent2"/>
         <endEvent id="subendevent2" name="Inner Sub End"/>
       </subProcess>
@@ -23,7 +23,6 @@
     <sequenceFlow id="flow2" sourceRef="subprocess1" targetRef="endevent1"/>
     <endEvent id="endevent1" name="End"/>
   </process>
-  <!-- Main process diagram: subprocess1 shown collapsed -->
   <bpmndi:BPMNDiagram id="BPMNDiagram_nestedCollapsedSubprocessProcess">
     <bpmndi:BPMNPlane id="BPMNPlane_nestedCollapsedSubprocessProcess" bpmnElement="nestedCollapsedSubprocessProcess">
       <bpmndi:BPMNShape id="BPMNShape_startevent1" bpmnElement="startevent1">
@@ -45,7 +44,6 @@
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
-  <!-- Level 1: contents of subprocess1, with subprocess2 shown collapsed -->
   <bpmndi:BPMNDiagram id="BPMNDiagram_subprocess1">
     <bpmndi:BPMNPlane id="BPMNPlane_subprocess1" bpmnElement="subprocess1">
       <bpmndi:BPMNShape id="BPMNShape_substartevent1" bpmnElement="substartevent1">
@@ -67,7 +65,6 @@
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
-  <!-- Level 2: contents of subprocess2 (innermost) -->
   <bpmndi:BPMNDiagram id="BPMNDiagram_subprocess2">
     <bpmndi:BPMNPlane id="BPMNPlane_subprocess2" bpmnElement="subprocess2">
       <bpmndi:BPMNShape id="BPMNShape_substartevent2" bpmnElement="substartevent2">
