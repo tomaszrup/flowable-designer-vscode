@@ -43,8 +43,40 @@ function renderGatewayProperties(
 	const { ui } = deps;
 	const gatewayGroup = ui.createGroup('Gateway');
 	const currentDefault = getCurrentDefaultFlowId(businessObject.default);
-	const outgoingFlows = (businessObject.outgoing as Array<{ id: string; name?: string }> || []);
-	const flowOptions = outgoingFlows.map((flow) => ({ value: flow.id, label: flow.name ? `${flow.name} (${flow.id})` : flow.id }));
+	const registryOutgoing = (
+		(deps.elementRegistry as PropertyRenderDeps['elementRegistry'] & {
+			filter?: (predicate: (element: BpmnElement) => boolean) => BpmnElement[];
+		}).filter?.((element) => {
+			if (!isSequenceFlow(element)) {
+				return false;
+			}
+			const flowBusinessObject = getBusinessObject(element) as {
+				sourceRef?: { id?: string };
+			};
+			return flowBusinessObject.sourceRef?.id === selectedElement.id;
+		}) || []
+	).map((flow) => {
+		const flowBusinessObject = getBusinessObject(flow);
+		return {
+			id: flowBusinessObject.id || flow.id || '',
+			name: typeof flowBusinessObject.name === 'string' ? flowBusinessObject.name : '',
+		};
+	});
+	const outgoingFlows = [
+		...registryOutgoing,
+		...(((selectedElement as unknown as { outgoing?: Array<{ id?: string; businessObject?: { id?: string; name?: string } }> }).outgoing) || []).map((flow) => {
+			return {
+				id: flow.businessObject?.id || flow.id || '',
+				name: flow.businessObject?.name || '',
+			};
+		}),
+		...((businessObject.outgoing as Array<{ id?: string; name?: string }> || []).map((flow) => ({
+			id: flow.id || '',
+			name: flow.name || '',
+		}))),
+	];
+	const flowOptions = Array.from(new Map(outgoingFlows.filter((flow) => flow.id).map((flow) => [flow.id, flow])).values())
+		.map((flow) => ({ value: flow.id, label: flow.name ? `${flow.name} (${flow.id})` : flow.id }));
 	gatewayGroup.appendChild(ui.createField('Default Flow', ui.createReferenceSelect(flowOptions, currentDefault, (value) => {
 		const targetFlow = value.trim();
 		if (targetFlow) {

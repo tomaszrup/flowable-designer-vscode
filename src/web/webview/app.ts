@@ -88,6 +88,9 @@ minimap.close();
 		if (!element) {
 			return false;
 		}
+		if (canvasService.findRoot(elementId) === element) {
+			canvasService.setRootElement(element);
+		}
 		selectionService.select([element]);
 		return true;
 	},

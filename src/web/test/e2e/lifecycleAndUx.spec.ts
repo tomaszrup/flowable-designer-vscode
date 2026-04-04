@@ -19,7 +19,9 @@ test.describe('Flowable BPMN designer lifecycle and UX flows', () => {
 		}, { timeout: 20_000 }).toContain('<?xml version="1.0" encoding="UTF-8"?>');
 
 		await frame.getByRole('button', { name: 'View BPMN XML source' }).click();
-		await expect(frame.locator('#btn-view-source')).not.toHaveClass(/active/);
+		await expect.poll(async () => {
+			return await frame.locator('#btn-view-source').evaluate((element) => element.classList.contains('active'));
+		}, { timeout: 20_000 }).toBe(false);
 	});
 
 	test('routes validation and export commands to the active BPMN tab', async ({ page, workbenchBaseUrl, workerWorkspacePath }, testInfo) => {

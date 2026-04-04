@@ -82,6 +82,8 @@ export function getActiveBpmnEditorSession(): BpmnEditorSession | undefined {
 				return activeSession;
 			}
 		}
+
+		return undefined;
 	}
 
 	if (lastActiveSessionId) {
@@ -92,5 +94,20 @@ export function getActiveBpmnEditorSession(): BpmnEditorSession | undefined {
 }
 
 export function getActiveBpmnDocument(): vscode.TextDocument | undefined {
-	return getActiveBpmnEditorSession()?.document || getActiveBpmnTextDocument();
+	const activeSessionDocument = getActiveBpmnEditorSession()?.document;
+	if (activeSessionDocument) {
+		return activeSessionDocument;
+	}
+
+	const activeTextDocument = getActiveBpmnTextDocument();
+	if (activeTextDocument) {
+		return activeTextDocument;
+	}
+
+	const activeUri = resolveActiveBpmnUri();
+	if (!activeUri) {
+		return undefined;
+	}
+
+	return vscode.workspace.textDocuments.find((document) => document.uri.toString() === activeUri.toString());
 }

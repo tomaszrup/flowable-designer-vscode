@@ -1,27 +1,14 @@
 import { expect, test } from './e2eTest';
 import { createIsolatedFixture, removeIsolatedFixture } from './isolatedFixtures';
-import { readWorkspaceFile, writeWorkspaceSettings } from './testWorkspace';
-import { openBpmnFixture, openProblemsPanel, openSourceView, reopenEditorWithTextEditor, replaceInActiveEditor, runWorkbenchCommand, selectBpmnShape, waitForBpmnDesignerFrame } from './vscodeWorkbench';
+import { writeWorkspaceSettings } from './testWorkspace';
+import { escapeRegex, openBpmnFixture, openProblemsPanel, openSourceView, reopenEditorWith, replaceInActiveEditor, runWorkbenchCommand, saveActiveEditor, selectBpmnShape, waitForBpmnDesignerFrame } from './vscodeWorkbench';
 
-let restoreSettings: (() => Promise<void>) | null = null;
+async function activeBodyText(page: { locator: (selector: string) => { innerText(): Promise<string> } }): Promise<string> {
+	return (await page.locator('body').innerText()).split('\u00a0').join(' ');
+}
 
 test.describe('Flowable BPMN designer command and settings flows', () => {
 	test.describe.configure({ mode: 'serial' });
-
-	test.beforeAll(async ({ workerWorkspacePath }) => {
-		restoreSettings = await writeWorkspaceSettings(workerWorkspacePath, {
-			'flowableBpmnDesigner.imageExport.enabled': true,
-			'flowableBpmnDesigner.imageExport.overlay.enabled': true,
-			'flowableBpmnDesigner.imageExport.overlay.showDate': false,
-			'flowableBpmnDesigner.imageExport.overlay.color': '#123456',
-			'flowableBpmnDesigner.imageExport.overlay.backgroundColor': '#fefefe',
-			'flowableBpmnDesigner.editor.minimap': true,
-		});
-	});
-
-	test.afterAll(async () => {
-		await restoreSettings?.();
-	});
 
 	test('creates a new BPMN diagram from the command palette', async ({ page, workbenchBaseUrl }) => {
 		await page.goto(workbenchBaseUrl);
@@ -34,9 +21,10 @@ test.describe('Flowable BPMN designer command and settings flows', () => {
 		await expect(frame.getByRole('button', { name: 'View BPMN XML source' })).toBeVisible();
 	});
 
-	test('validates BPMN from the plain text editor when the custom editor is not active', async ({ page, workbenchBaseUrl }) => {
-		await openBpmnFixture(page, 'invalid-unassigned-user-task.bpmn', workbenchBaseUrl);
-		await reopenEditorWithTextEditor(page);
+	test('validates BPMN while the source text editor is active', async ({ page, workbenchBaseUrl }) => {
+		const frame = await openBpmnFixture(page, 'invalid-unassigned-user-task.bpmn', workbenchBaseUrl);
+		await openSourceView(page, frame);
+		await page.locator('.monaco-editor').last().click();
 
 		await runWorkbenchCommand(page, 'Flowable BPMN Designer: Validate BPMN');
 		await openProblemsPanel(page);
@@ -45,6 +33,15 @@ test.describe('Flowable BPMN designer command and settings flows', () => {
 
 	test('enables minimap and auto-export overlay from workspace settings', async ({ page, workbenchBaseUrl, workerWorkspacePath }, testInfo) => {
 		const fixtureFileName = await createIsolatedFixture(workerWorkspacePath, 'legacy-user-task.bpmn', testInfo);
+		const svgFileName = fixtureFileName.replace(/\.bpmn$/i, '.svg');
+		const restoreSettings = await writeWorkspaceSettings(workerWorkspacePath, {
+			'flowableBpmnDesigner.imageExport.enabled': true,
+			'flowableBpmnDesigner.imageExport.overlay.enabled': true,
+			'flowableBpmnDesigner.imageExport.overlay.showDate': false,
+			'flowableBpmnDesigner.imageExport.overlay.color': '#123456',
+			'flowableBpmnDesigner.imageExport.overlay.backgroundColor': '#fefefe',
+			'flowableBpmnDesigner.editor.minimap': true,
+		});
 		try {
 			const frame = await openBpmnFixture(page, fixtureFileName, workbenchBaseUrl);
 			await expect(frame.locator('.djs-minimap')).toBeVisible();
@@ -53,19 +50,35 @@ test.describe('Flowable BPMN designer command and settings flows', () => {
 			await frame.getByLabel('Name').fill('Export With Overlay');
 			await frame.getByLabel('Name').blur();
 			await expect(frame.locator('#status')).toHaveText(/Diagram updated/);
+			await saveActiveEditor(page);
 
-			await expect.poll(async () => {
-				return await readWorkspaceFile(workerWorkspacePath, `fixtures/flowable/${fixtureFileName.replace(/\.bpmn$/i, '.svg')}`);
-			}, {
-				message: 'Expected auto-export to write an SVG file with the configured overlay.',
+			await expect.poll(async () => await page.locator('body').innerText(), {
+				message: 'Expected auto-export to report the generated SVG file.',
+				timeout: 20_000,
+			}).toContain(`Diagram exported to ${svgFileName}`);
+			const svgTreeItem = page.getByRole('treeitem', { name: new RegExp(`^${escapeRegex(svgFileName)}$`, 'i') }).first();
+			await expect(svgTreeItem).toBeVisible();
+			await svgTreeItem.dblclick();
+			await expect(page.getByRole('tab', { name: new RegExp(`^${escapeRegex(svgFileName)}$`, 'i') })).toBeVisible();
+			await reopenEditorWith(page, /Text Editor/i);
+			await expect.poll(async () => await activeBodyText(page), {
+				message: 'Expected the exported SVG to include the configured overlay metadata.',
 				timeout: 20_000,
 			}).toContain('Key: legacyUserTaskProcess');
-			const svgContent = await readWorkspaceFile(workerWorkspacePath, `fixtures/flowable/${fixtureFileName.replace(/\.bpmn$/i, '.svg')}`);
-			expect(svgContent).toContain('Key: legacyUserTaskProcess');
-			expect(svgContent).toContain(`File: ${fixtureFileName.replace(/\.bpmn$/i, '.svg')}`);
-			expect(svgContent).toContain('NS: http://www.activiti.org/test');
-			expect(svgContent).toContain('fill="#123456"');
+			await expect.poll(async () => await activeBodyText(page), {
+				message: 'Expected the exported SVG to include the BPMN source filename in the overlay.',
+				timeout: 20_000,
+			}).toContain(`File: ${fixtureFileName}`);
+			await expect.poll(async () => await activeBodyText(page), {
+				message: 'Expected the exported SVG to include the configured namespace label.',
+				timeout: 20_000,
+			}).toContain('NS: http://www.activiti.org/test');
+			await expect.poll(async () => await activeBodyText(page), {
+				message: 'Expected the exported SVG to include the configured overlay color.',
+				timeout: 20_000,
+			}).toContain('#123456');
 		} finally {
+			await restoreSettings();
 			await removeIsolatedFixture(workerWorkspacePath, fixtureFileName);
 		}
 	});

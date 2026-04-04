@@ -17,24 +17,45 @@ export async function openBpmnFixture(page: Page, fixtureFileName: string, workb
 export async function openBpmnFixtureInCurrentWorkbench(page: Page, fixtureFileName: string): Promise<Frame> {
 	await expect(page.getByRole('treeitem', { name: /^fixtures$/i }).first()).toBeVisible({ timeout: workbenchTimeout });
 
+	const fileTab = page.getByRole('tab', { name: new RegExp(`^${escapeRegex(fixtureFileName)}$`, 'i') }).last();
 	const fixturesTreeItem = page.getByRole('treeitem', { name: /^fixtures$/i }).first();
 	const fileTreeItem = page.getByRole('treeitem', {
 		name: new RegExp(`^${escapeRegex(fixtureFileName)}$`, 'i'),
 	}).first();
+	const refreshExplorerButton = page.getByRole('button', { name: /Refresh Explorer/i }).first();
 
-	if (!(await fileTreeItem.isVisible())) {
-		await fixturesTreeItem.click();
+	for (let attempt = 0; attempt < 4; attempt += 1) {
+		if (await fileTreeItem.isVisible().catch(() => false)) {
+			break;
+		}
+		await fixturesTreeItem.click().catch(() => {});
+		if (await refreshExplorerButton.isVisible().catch(() => false)) {
+			await refreshExplorerButton.click().catch(() => {});
+		}
+		await page.waitForTimeout(500);
 	}
 
-	await expect(fileTreeItem).toBeVisible({ timeout: workbenchTimeout });
-	await fileTreeItem.dblclick();
+	if (await fileTreeItem.isVisible().catch(() => false)) {
+		await fileTreeItem.dblclick();
+	} else {
+		await page.keyboard.press('Control+P');
+		const quickOpenInput = page.locator('.quick-input-widget:visible input.input:visible').last();
+		await expect(quickOpenInput).toBeVisible({ timeout: workbenchTimeout });
+		await quickOpenInput.click();
+		await page.keyboard.press('Control+A');
+		await page.keyboard.type(fixtureFileName);
+		await page.keyboard.press('Enter');
+	}
 
-	let frame = await tryWaitForBpmnDesignerFrame(page, 12_000);
+	await expect(fileTab).toBeVisible({ timeout: workbenchTimeout });
+
+	let frame = await tryWaitForBpmnDesignerFrame(page, 20_000);
 	if (!frame) {
+		await fileTab.click();
 		await reopenEditorWithBpmnDesigner(page);
 		frame = await waitForBpmnDesignerFrame(page);
 	}
-	await expect(page.getByRole('tab', { name: new RegExp(`^${escapeRegex(fixtureFileName)}$`, 'i') }).last()).toBeVisible();
+	await expect(fileTab).toBeVisible();
 	await expect(frame.locator('#canvas')).toBeVisible();
 	await expect(frame.locator('#status')).toHaveText(/Diagram synchronized/, { timeout: workbenchTimeout });
 
@@ -44,15 +65,19 @@ export async function openBpmnFixtureInCurrentWorkbench(page: Page, fixtureFileN
 function findBpmnDesignerFrame(page: Page): Promise<Frame | undefined> {
 	return (async () => {
 		for (const frame of page.frames()) {
-			if (!frame.url().includes('/pre/fake.html')) {
+			try {
+				if (!frame.url().includes('/pre/fake.html')) {
+					continue;
+				}
+
+				if ((await frame.locator('#status').count()) === 0) {
+					continue;
+				}
+
+				return frame;
+			} catch {
 				continue;
 			}
-
-			if ((await frame.locator('#status').count()) === 0) {
-				continue;
-			}
-
-			return frame;
 		}
 
 		return undefined;
@@ -89,10 +114,23 @@ async function tryWaitForBpmnDesignerFrame(page: Page, timeout: number): Promise
 }
 
 export async function selectBpmnShape(frame: Frame, elementId: string): Promise<void> {
-	const selected = await frame.evaluate((targetElementId) => {
-		return ((globalThis as unknown) as Window).__flowableTestApi?.selectElementById(targetElementId) ?? false;
-	}, elementId);
-	if (selected) {
+	await expect(frame.locator('#canvas')).toBeVisible({ timeout: workbenchTimeout });
+	let selectedViaApi = false;
+	await expect.poll(async () => {
+		try {
+			selectedViaApi = await frame.evaluate((targetElementId) => {
+				return ((globalThis as unknown) as Window).__flowableTestApi?.selectElementById(targetElementId) ?? false;
+			}, elementId);
+			return selectedViaApi;
+		} catch {
+			return false;
+		}
+	}, {
+		message: `Expected the BPMN designer test API to select ${elementId}.`,
+		timeout: 5_000,
+	}).toBeTruthy().catch(() => {});
+
+	if (selectedViaApi) {
 		return;
 	}
 
@@ -107,7 +145,13 @@ export async function selectBpmnShape(frame: Frame, elementId: string): Promise<
 		await element.click({ force: true });
 		return;
 	}
-	await expect(element).toBeVisible();
+	await expect.poll(async () => {
+		return await element.count();
+	}, {
+		message: `Expected BPMN element ${elementId} to appear in the rendered diagram.`,
+		timeout: 20_000,
+	}).toBeGreaterThan(0);
+	await expect(element).toBeVisible({ timeout: 20_000 });
 }
 
 export async function openSourceView(page: Page, frame: Frame): Promise<void> {
@@ -192,10 +236,11 @@ export async function setSidebarScrollTop(frame: Frame, scrollTop: number): Prom
 }
 
 export async function runWorkbenchCommand(page: Page, commandTitle: string, waitForClose = true): Promise<void> {
+	await page.locator('body').click({ position: { x: 20, y: 20 } }).catch(() => {});
 	await page.keyboard.press('Control+Shift+P');
-	const widget = page.locator('.quick-input-widget').last();
+	const widget = page.locator('.quick-input-widget:visible').last();
 	await expect(widget).toBeVisible({ timeout: workbenchTimeout });
-	const commandInput = widget.locator('input.input');
+	const commandInput = page.locator('.quick-input-widget:visible input.input:visible').last();
 	await expect(commandInput).toBeVisible({ timeout: workbenchTimeout });
 	await commandInput.click();
 	await page.keyboard.press('Control+A');
@@ -207,10 +252,14 @@ export async function runWorkbenchCommand(page: Page, commandTitle: string, wait
 }
 
 export async function reopenEditorWithBpmnDesigner(page: Page): Promise<void> {
+	await reopenEditorWith(page, /Flowable BPMN Designer/i);
+}
+
+export async function reopenEditorWith(page: Page, editorLabel: RegExp | string): Promise<void> {
 	await runWorkbenchCommand(page, 'View: Reopen Editor With...', false);
-	const widget = page.locator('.quick-input-widget').last();
+	const widget = page.locator('.quick-input-widget:visible').last();
 	await expect(widget).toBeVisible({ timeout: workbenchTimeout });
-	await widget.getByText('Flowable BPMN Designer').click();
+	await widget.getByText(editorLabel).first().click();
 	await expect(widget).toBeHidden({ timeout: workbenchTimeout });
 }
 

@@ -55,28 +55,38 @@ export function isCallActivity(element: BpmnElement): boolean {
 	return getElementType(element) === 'bpmn:CallActivity';
 }
 
+function getServiceTaskImplementationType(element: BpmnElement): string | undefined {
+	if (!isServiceTask(element)) {
+		return undefined;
+	}
+	const bo = getBusinessObject(element) as BpmnBusinessObject & {
+		type?: string;
+		$attrs?: Record<string, unknown>;
+		get?: (name: string) => unknown;
+	};
+	const attrsType = typeof bo.$attrs?.['activiti:type'] === 'string' ? bo.$attrs['activiti:type'] : undefined;
+	const attrsUnprefixedType = typeof bo.$attrs?.type === 'string' ? bo.$attrs.type : undefined;
+	const directActivitiType = typeof (bo as Record<string, unknown>)['activiti:type'] === 'string' ? (bo as Record<string, unknown>)['activiti:type'] as string : undefined;
+	const directType = typeof bo.type === 'string' ? bo.type : undefined;
+	const getterType = typeof bo.get === 'function' && typeof bo.get('activiti:type') === 'string' ? bo.get('activiti:type') as string : undefined;
+	const getterUnprefixedType = typeof bo.get === 'function' && typeof bo.get('type') === 'string' ? bo.get('type') as string : undefined;
+	return directActivitiType || directType || attrsType || attrsUnprefixedType || getterType || getterUnprefixedType;
+}
+
 export function isMailTask(element: BpmnElement): boolean {
-	if (!isServiceTask(element)) { return false; }
-	const bo = getBusinessObject(element);
-	return bo.$type === 'bpmn:ServiceTask' && (bo as Record<string, unknown>)['activiti:type'] === 'mail';
+	return getServiceTaskImplementationType(element) === 'mail';
 }
 
 export function isHttpTask(element: BpmnElement): boolean {
-	if (!isServiceTask(element)) { return false; }
-	const bo = getBusinessObject(element);
-	return bo.$type === 'bpmn:ServiceTask' && (bo as Record<string, unknown>)['activiti:type'] === 'http';
+	return getServiceTaskImplementationType(element) === 'http';
 }
 
 export function isShellTask(element: BpmnElement): boolean {
-	if (!isServiceTask(element)) { return false; }
-	const bo = getBusinessObject(element);
-	return bo.$type === 'bpmn:ServiceTask' && (bo as Record<string, unknown>)['activiti:type'] === 'shell';
+	return getServiceTaskImplementationType(element) === 'shell';
 }
 
 export function isExternalWorkerTask(element: BpmnElement): boolean {
-	if (!isServiceTask(element)) { return false; }
-	const bo = getBusinessObject(element);
-	return bo.$type === 'bpmn:ServiceTask' && (bo as Record<string, unknown>)['activiti:type'] === 'external-worker';
+	return getServiceTaskImplementationType(element) === 'external-worker';
 }
 
 export function isGenericServiceTask(element: BpmnElement): boolean {

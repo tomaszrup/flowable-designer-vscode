@@ -25,6 +25,11 @@ function renderMailTaskProperties(renderers: SharedCollectionRenderers, ui: Prop
 	properties.appendChild(mailGroup);
 }
 
+function hasFieldExtensions(elementState: FlowableElementState, fieldNames: string[]): boolean {
+	const existingFieldNames = new Set(elementState.fieldExtensions.map((field) => field.name));
+	return fieldNames.some((fieldName) => existingFieldNames.has(fieldName));
+}
+
 function renderHttpTaskProperties(renderers: SharedCollectionRenderers, ui: PropertyRenderDeps['ui'], properties: HTMLElement, elementState: FlowableElementState): void {
 	const httpGroup = ui.createGroup('Http Task');
 	for (const fieldName of ['requestMethod', 'requestUrl', 'requestHeaders', 'requestTimeout', 'failStatusCodes', 'handleStatusCodes', 'resultVariablePrefix'] as const) {
@@ -101,20 +106,24 @@ export function renderSpecializedTaskProperties(
 	elementState: FlowableElementState,
 ): void {
 	const { ui } = deps;
+	const shouldRenderMailTask = isMailTask(selectedElement) || hasFieldExtensions(elementState, ['to', 'from', 'subject', 'html', 'text']);
+	const shouldRenderHttpTask = isHttpTask(selectedElement) || hasFieldExtensions(elementState, ['requestMethod', 'requestUrl', 'requestTimeout', 'saveResponseParameters']);
+	const shouldRenderShellTask = isShellTask(selectedElement) || hasFieldExtensions(elementState, ['command', 'wait', 'redirectError', 'cleanEnv']);
+	const shouldRenderExternalWorkerTask = isExternalWorkerTask(selectedElement) || hasFieldExtensions(elementState, ['topic']);
 
-	if (isMailTask(selectedElement)) {
+	if (shouldRenderMailTask) {
 		renderMailTaskProperties(renderers, ui, properties, elementState);
 	}
 
-	if (isHttpTask(selectedElement)) {
+	if (shouldRenderHttpTask) {
 		renderHttpTaskProperties(renderers, ui, properties, elementState);
 	}
 
-	if (isShellTask(selectedElement)) {
+	if (shouldRenderShellTask) {
 		renderShellTaskProperties(renderers, ui, properties, elementState);
 	}
 
-	if (isExternalWorkerTask(selectedElement)) {
+	if (shouldRenderExternalWorkerTask) {
 		const externalWorkerGroup = ui.createGroup('External Worker Task');
 		renderers.renderTextFieldExtension(externalWorkerGroup, elementState, 'topic', 'Topic');
 		properties.appendChild(externalWorkerGroup);
