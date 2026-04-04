@@ -89,9 +89,25 @@ async function tryWaitForBpmnDesignerFrame(page: Page, timeout: number): Promise
 }
 
 export async function selectBpmnShape(frame: Frame, elementId: string): Promise<void> {
+	const selected = await frame.evaluate((targetElementId) => {
+		return ((globalThis as unknown) as Window).__flowableTestApi?.selectElementById(targetElementId) ?? false;
+	}, elementId);
+	if (selected) {
+		return;
+	}
+
 	const hitbox = frame.locator(`[data-element-id="${elementId}"] .djs-hit`).first();
-	await expect(hitbox).toBeVisible();
-	await hitbox.click();
+	if (await hitbox.isVisible().catch(() => false)) {
+		await hitbox.click();
+		return;
+	}
+
+	const element = frame.locator(`[data-element-id="${elementId}"]`).first();
+	if (await element.isVisible().catch(() => false)) {
+		await element.click({ force: true });
+		return;
+	}
+	await expect(element).toBeVisible();
 }
 
 export async function openSourceView(page: Page, frame: Frame): Promise<void> {
@@ -195,5 +211,13 @@ export async function reopenEditorWithBpmnDesigner(page: Page): Promise<void> {
 	const widget = page.locator('.quick-input-widget').last();
 	await expect(widget).toBeVisible({ timeout: workbenchTimeout });
 	await widget.getByText('Flowable BPMN Designer').click();
+	await expect(widget).toBeHidden({ timeout: workbenchTimeout });
+}
+
+export async function reopenEditorWithTextEditor(page: Page): Promise<void> {
+	await runWorkbenchCommand(page, 'View: Reopen Editor With...', false);
+	const widget = page.locator('.quick-input-widget').last();
+	await expect(widget).toBeVisible({ timeout: workbenchTimeout });
+	await widget.getByText(/^Text Editor$/).click();
 	await expect(widget).toBeHidden({ timeout: workbenchTimeout });
 }

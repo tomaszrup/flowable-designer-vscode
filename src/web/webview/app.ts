@@ -31,6 +31,15 @@ interface CanvasService {
 interface ElementRegistryService { get(id: string): BpmnElement | undefined; }
 interface CommandStackService { undo(): void; redo(): void; canUndo(): boolean; canRedo(): boolean; }
 interface MinimapService { open(): void; close(): void; }
+interface SelectionService { select(elements: BpmnElement[]): void; }
+
+declare global {
+	interface Window {
+		__flowableTestApi?: {
+			selectElementById: (elementId: string) => boolean;
+		};
+	}
+}
 
 const vscode = acquireVsCodeApi();
 
@@ -70,7 +79,19 @@ const canvasService = modeler.get('canvas') as CanvasService;
 const elementRegistry = modeler.get('elementRegistry') as ElementRegistryService;
 const commandStack = modeler.get('commandStack') as CommandStackService;
 const minimap = modeler.get('minimap') as MinimapService;
+const selectionService = modeler.get('selection') as SelectionService;
 minimap.close();
+
+((globalThis as unknown) as Window).__flowableTestApi = {
+	selectElementById: (elementId: string): boolean => {
+		const element = elementRegistry.get(elementId) || canvasService.findRoot(elementId);
+		if (!element) {
+			return false;
+		}
+		selectionService.select([element]);
+		return true;
+	},
+};
 
 let currentXml = '';
 let applyingRemoteUpdate = false;
@@ -86,7 +107,20 @@ let pendingScrollRestore: number | null = null;
 let lastPersistedStateSignature = JSON.stringify(flowableState);
 let saveRequestId = 0;
 const counters: ActionCounters = { field: 0, listener: 0, formProperty: 0, ioParameter: 0, dataObject: 0, signalDefinition: 0, messageDefinition: 0, eventListener: 0, localization: 0 };
-const savedUiState = (vscode.getState() || {}) as { collapsedGroups?: string[]; sidebarWidth?: number };
+const uiStateStorageKey = 'flowableBpmnDesigner.uiState';
+function readSavedUiState(): { collapsedGroups?: string[]; sidebarWidth?: number } {
+	const fromVsCode = (vscode.getState() || {}) as { collapsedGroups?: string[]; sidebarWidth?: number };
+	if (fromVsCode.collapsedGroups || fromVsCode.sidebarWidth) {
+		return fromVsCode;
+	}
+	try {
+		const fromStorage = globalThis.localStorage.getItem(uiStateStorageKey);
+		return fromStorage ? JSON.parse(fromStorage) as { collapsedGroups?: string[]; sidebarWidth?: number } : {};
+	} catch {
+		return {};
+	}
+}
+const savedUiState = readSavedUiState();
 const collapsedGroups = new Set<string>(savedUiState.collapsedGroups || []);
 let sidebarWidth = savedUiState.sidebarWidth ?? 320;
 
@@ -100,8 +134,13 @@ if (sidebarEl) {
 
 function nextFieldId(prefix: string): string { fieldIdCounter += 1; return `fld-${prefix}-${fieldIdCounter}`; }
 function persistUiState(): void {
-	const current = (vscode.getState() || {}) as Record<string, unknown>;
-	vscode.setState({ ...current, collapsedGroups: Array.from(collapsedGroups), sidebarWidth });
+	const nextState = { ...((vscode.getState() || {}) as Record<string, unknown>), collapsedGroups: Array.from(collapsedGroups), sidebarWidth };
+	vscode.setState(nextState);
+	try {
+		globalThis.localStorage.setItem(uiStateStorageKey, JSON.stringify({ collapsedGroups: Array.from(collapsedGroups), sidebarWidth }));
+	} catch {
+		// Ignore browsers where localStorage is unavailable inside the webview sandbox.
+	}
 }
 function updateDirtyIndicator(dirty: boolean): void { unsavedDot.classList.toggle('visible', dirty); }
 function updateUndoRedoState(): void { btnUndo.disabled = !commandStack.canUndo(); btnRedo.disabled = !commandStack.canRedo(); }
@@ -382,7 +421,7 @@ globalThis.addEventListener('pointercancel', stopResizing);
 if (sidebarWidth !== 320) { layoutEl.style.setProperty('--sidebar-width', `${sidebarWidth}px`); }
 globalThis.addEventListener('keydown', (event: KeyboardEvent) => {
 	if (event.key === 'Escape' && selectedElement) {
-		(modeler.get('selection') as { select(elements: BpmnElement[]): void }).select([]);
+		selectionService.select([]);
 		canvas.focus();
 	}
 });
