@@ -105,6 +105,7 @@ jobs:
         run: |
           mkdir -p .pages/coverage
           cp .coverage-artifact/badge.svg .pages/coverage.svg
+          cp .coverage-artifact/badge.json .pages/coverage-badge.json
           cp -R .coverage-artifact/lcov-report/. .pages/coverage/
           cat > .pages/index.html <<'EOF'
           <!doctype html>

@@ -102,7 +102,7 @@ let initialLoadDone = false;
 let selectedElement: BpmnElement | null = null;
 let currentRootId: string | null = null;
 let flowableState: FlowableDocumentState = createEmptyFlowableState();
-let metadataSaveTimer: number | undefined;
+let metadataSaveTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
 let pendingFilePickTextArea: { textarea: HTMLTextAreaElement; elementId: string } | null = null;
 let fieldIdCounter = 0;
 let savedSidebarScroll = 0;
