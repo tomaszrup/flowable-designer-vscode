@@ -59,8 +59,12 @@ describe('coverage badge generation', () => {
 
 	test('uses a vsce-compatible badge host in the README', () => {
 		const readme = readFileSync(join(process.cwd(), 'README.md'), 'utf8');
+		const ciBadge = '[![CI](https://github.com/tomaszrup/flowable-designer-vscode/actions/workflows/ci.yml/badge.svg)](https://github.com/tomaszrup/flowable-designer-vscode/actions/workflows/ci.yml)';
+		const coverageBadge = '[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Ftomaszrup.github.io%2Fflowable-designer-vscode%2Fcoverage-badge.json)](https://tomaszrup.github.io/flowable-designer-vscode/coverage/)';
 
+		expect(readme).toContain(ciBadge);
 		expect(readme).toContain('https://img.shields.io/endpoint?url=');
 		expect(readme).not.toContain('https://tomaszrup.github.io/flowable-designer-vscode/coverage.svg');
+		expect(readme.indexOf(ciBadge)).toBeLessThan(readme.indexOf(coverageBadge));
 	});
 });
