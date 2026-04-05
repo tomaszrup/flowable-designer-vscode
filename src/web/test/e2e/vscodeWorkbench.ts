@@ -15,10 +15,7 @@ export async function openBpmnFixture(page: Page, fixtureFileName: string, workb
 	return await openBpmnFixtureInCurrentWorkbench(page, fixtureFileName);
 }
 
-export async function openBpmnFixtureInCurrentWorkbench(page: Page, fixtureFileName: string): Promise<Frame> {
-	await waitForWorkbenchReady(page);
-
-	const fileTab = page.getByRole('tab', { name: new RegExp(`^${escapeRegex(fixtureFileName)}$`, 'i') }).last();
+async function tryOpenFileInWorkbench(page: Page, fixtureFileName: string): Promise<void> {
 	const fixturesTreeItem = page.getByRole('treeitem', { name: /^fixtures$/i }).first();
 	const fileTreeItem = page.getByRole('treeitem', {
 		name: new RegExp(`^${escapeRegex(fixtureFileName)}$`, 'i'),
@@ -49,6 +46,19 @@ export async function openBpmnFixtureInCurrentWorkbench(page: Page, fixtureFileN
 		await page.keyboard.press('Control+A');
 		await page.keyboard.type(`fixtures/flowable/${fixtureFileName}`);
 		await page.keyboard.press('Enter');
+	}
+}
+
+export async function openBpmnFixtureInCurrentWorkbench(page: Page, fixtureFileName: string): Promise<Frame> {
+	await waitForWorkbenchReady(page);
+
+	const fileTab = page.getByRole('tab', { name: new RegExp(`^${escapeRegex(fixtureFileName)}$`, 'i') }).last();
+
+	await tryOpenFileInWorkbench(page, fixtureFileName);
+
+	if (!await fileTab.isVisible().catch(() => false)) {
+		await page.waitForTimeout(2_000);
+		await tryOpenFileInWorkbench(page, fixtureFileName);
 	}
 
 	await expect(fileTab).toBeVisible({ timeout: workbenchTimeout });

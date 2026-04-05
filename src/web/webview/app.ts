@@ -9,7 +9,7 @@ import { createElementActions } from './elementActions';
 import { createElementState } from './elementState';
 import { syncActionCountersFromState, type ActionCounters } from './counterSync';
 import { createAnimationFrameScheduler, replacePendingAnimationFrame } from './frameScheduling';
-import { createPropertyUi } from './propertyUi';
+import { createPropertyUi, flushFocusedInput } from './propertyUi';
 import { getKnownProcessIds, remapProcessScopedIds } from './processScoped';
 import { renderPropertiesPanel } from './renderProperties';
 
@@ -210,6 +210,7 @@ function applyPropertyFilter(query: string): void {
 }
 
 function renderProperties(): void {
+	flushFocusedInput(properties);
 	fieldIdCounter = 0;
 	renderPropertiesPanel(
 		{ ui, actions, getSelectedElement, getFlowableState, ensureElementState, getKnownProcessIds: getKnownProcessIdsForState, makeDraggableItem, makeProcessScopedDraggableItem, queueMetadataSave, renderProperties: schedulePropertiesRender, modeling, elementRegistry, postMessage, setPendingFilePick: (textarea, elementId) => { pendingFilePickTextArea = { textarea, elementId }; } },

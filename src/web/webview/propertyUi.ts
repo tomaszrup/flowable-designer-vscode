@@ -183,6 +183,13 @@ function createReferenceSelect(
 	return select;
 }
 
+export function flushFocusedInput(container: HTMLElement): void {
+	const focused = container.querySelector<HTMLInputElement | HTMLTextAreaElement>('input[type="text"]:focus, textarea:focus');
+	if (focused) {
+		(focused as HTMLInputElement & { __flushPendingEdit?: () => void }).__flushPendingEdit?.();
+	}
+}
+
 function flushPendingTextEdits(): void {
 	for (const control of Array.from(document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input[type="text"], textarea'))) {
 		control.dispatchEvent(new Event('blur'));
