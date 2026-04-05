@@ -1,7 +1,7 @@
 import { expect, test } from './e2eTest';
 import { createIsolatedFixture, removeIsolatedFixture } from './isolatedFixtures';
 import { writeWorkspaceSettings } from './testWorkspace';
-import { escapeRegex, openBpmnFixture, openProblemsPanel, openSourceView, reopenEditorWith, replaceInActiveEditor, runWorkbenchCommand, saveActiveEditor, selectBpmnShape, waitForBpmnDesignerFrame } from './vscodeWorkbench';
+import { escapeRegex, openBpmnFixture, openProblemsPanel, openSourceView, reopenEditorWith, replaceInActiveEditor, runWorkbenchCommand, saveActiveEditor, selectBpmnShape, waitForBpmnDesignerFrame, waitForWorkbenchReady } from './vscodeWorkbench';
 
 async function activeBodyText(page: { locator: (selector: string) => { innerText(): Promise<string> } }): Promise<string> {
 	return (await page.locator('body').innerText()).split('\u00a0').join(' ');
@@ -12,7 +12,7 @@ test.describe('Flowable BPMN designer command and settings flows', () => {
 
 	test('creates a new BPMN diagram from the command palette', async ({ page, workbenchBaseUrl }) => {
 		await page.goto(workbenchBaseUrl);
-		await expect(page.getByRole('treeitem', { name: /^fixtures$/i }).first()).toBeVisible();
+		await waitForWorkbenchReady(page);
 		await runWorkbenchCommand(page, 'Flowable BPMN Designer: New BPMN Diagram');
 		const frame = await waitForBpmnDesignerFrame(page);
 		await expect(frame.locator('#canvas')).toBeVisible();

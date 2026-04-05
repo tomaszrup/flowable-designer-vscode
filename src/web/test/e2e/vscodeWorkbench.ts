@@ -11,11 +11,12 @@ export function escapeRegex(value: string): string {
 
 export async function openBpmnFixture(page: Page, fixtureFileName: string, workbenchBaseUrl: string): Promise<Frame> {
 	await page.goto(workbenchBaseUrl);
+	await waitForWorkbenchReady(page);
 	return await openBpmnFixtureInCurrentWorkbench(page, fixtureFileName);
 }
 
 export async function openBpmnFixtureInCurrentWorkbench(page: Page, fixtureFileName: string): Promise<Frame> {
-	await expect(page.getByRole('treeitem', { name: /^fixtures$/i }).first()).toBeVisible({ timeout: workbenchTimeout });
+	await waitForWorkbenchReady(page);
 
 	const fileTab = page.getByRole('tab', { name: new RegExp(`^${escapeRegex(fixtureFileName)}$`, 'i') }).last();
 	const fixturesTreeItem = page.getByRole('treeitem', { name: /^fixtures$/i }).first();
@@ -24,26 +25,29 @@ export async function openBpmnFixtureInCurrentWorkbench(page: Page, fixtureFileN
 	}).first();
 	const refreshExplorerButton = page.getByRole('button', { name: /Refresh Explorer/i }).first();
 
-	for (let attempt = 0; attempt < 4; attempt += 1) {
-		if (await fileTreeItem.isVisible().catch(() => false)) {
-			break;
+	if (await fixturesTreeItem.isVisible().catch(() => false)) {
+		for (let attempt = 0; attempt < 4; attempt += 1) {
+			if (await fileTreeItem.isVisible().catch(() => false)) {
+				break;
+			}
+			await fixturesTreeItem.click().catch(() => {});
+			if (await refreshExplorerButton.isVisible().catch(() => false)) {
+				await refreshExplorerButton.click().catch(() => {});
+			}
+			await page.waitForTimeout(500);
 		}
-		await fixturesTreeItem.click().catch(() => {});
-		if (await refreshExplorerButton.isVisible().catch(() => false)) {
-			await refreshExplorerButton.click().catch(() => {});
-		}
-		await page.waitForTimeout(500);
 	}
 
 	if (await fileTreeItem.isVisible().catch(() => false)) {
 		await fileTreeItem.dblclick();
 	} else {
+		await waitForWorkbenchReady(page);
 		await page.keyboard.press('Control+P');
 		const quickOpenInput = page.locator('.quick-input-widget:visible input.input:visible').last();
 		await expect(quickOpenInput).toBeVisible({ timeout: workbenchTimeout });
 		await quickOpenInput.click();
 		await page.keyboard.press('Control+A');
-		await page.keyboard.type(fixtureFileName);
+		await page.keyboard.type(`fixtures/flowable/${fixtureFileName}`);
 		await page.keyboard.press('Enter');
 	}
 
@@ -60,6 +64,27 @@ export async function openBpmnFixtureInCurrentWorkbench(page: Page, fixtureFileN
 	await expect(frame.locator('#status')).toHaveText(/Diagram synchronized/, { timeout: workbenchTimeout });
 
 	return frame;
+}
+
+export async function waitForWorkbenchReady(page: Page): Promise<void> {
+	const primarySidebarToggle = page.getByRole('button', { name: /Toggle Primary Side Bar/i }).first();
+	const explorerTab = page.getByRole('tab', { name: /Explorer \(Ctrl\+Shift\+E\)/i }).first();
+	await expect(primarySidebarToggle).toBeVisible({ timeout: workbenchTimeout });
+	if ((await primarySidebarToggle.getAttribute('aria-pressed')) !== 'true') {
+		await primarySidebarToggle.click().catch(() => {});
+		if ((await primarySidebarToggle.getAttribute('aria-pressed')) !== 'true') {
+			await page.keyboard.press('Control+B');
+		}
+	}
+	await expect(explorerTab).toBeVisible({ timeout: workbenchTimeout });
+	await explorerTab.click().catch(() => {});
+	await page.keyboard.press('Control+Shift+E').catch(() => {});
+
+	const filesExplorer = page.getByRole('tree', { name: /^Files Explorer$/i }).first();
+	await expect(filesExplorer).toBeVisible({ timeout: workbenchTimeout });
+
+	const explorerSection = page.getByRole('button', { name: /^Explorer Section:/i }).first();
+	await expect(explorerSection).toBeVisible({ timeout: workbenchTimeout });
 }
 
 function findBpmnDesignerFrame(page: Page): Promise<Frame | undefined> {
